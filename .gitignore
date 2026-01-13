@@ -1,0 +1,23 @@
+# node
+node_modules
+npm-debug.log*
+yarn-error.log*
+
+# Expo
+.expo
+.expo-shared
+web-build
+dist
+
+# Next.js
+.next
+out
+
+# Env
+.env
+.env.local
+.env.production
+
+# OS
+.DS_Store
+Thumbs.db
