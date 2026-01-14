@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocalSearchParams } from "expo-router";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { fetchItemsData, resolveCategoryId } from "../../lib/aws/items";
+import { resolveImageUri } from "../../lib/images";
 import {
   isItemListVisible,
   isSubcategoryVisible,
@@ -21,6 +23,12 @@ type ItemMeta = ItemState["items"][number];
 type Category = ItemState["categories"][number];
 type Subcategory = ItemState["subcategories"][number];
 type MainCategory = ItemState["mainCategories"][number];
+
+const slugify = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
 
 const getTodayInfo = (): { dayName: DayName; minutes: number } => {
   const now = new Date();
@@ -69,6 +77,7 @@ export default function CategoryPage() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeSubcategoryId, setActiveSubcategoryId] = useState("all");
 
   const resolvedCategoryId = Array.isArray(categoryId)
     ? categoryId[0]
@@ -103,6 +112,10 @@ export default function CategoryPage() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    setActiveSubcategoryId("all");
+  }, [resolvedCategoryId]);
 
   const { dayName, minutes } = getTodayInfo();
   const nowDate = useMemo(() => new Date(), [dayName, minutes]);
@@ -171,10 +184,10 @@ export default function CategoryPage() {
     data.schedules.itemSchedules,
   ]);
 
-  const subcategoryLabels = useMemo(() => {
-    if (!resolvedCategoryId) return ["All"];
+  const subcategoryOptions = useMemo(() => {
+    if (!resolvedCategoryId) return [{ id: "all", name: "All" }];
     const { catMap, subcategoryScheduleById } = scheduleMaps;
-    const labels = data.subcategories
+    const options = data.subcategories
       .filter((subcategory) => {
         if (subcategory.categoryId !== resolvedCategoryId) return false;
         const parentCategory = subcategory.categoryId
@@ -190,8 +203,11 @@ export default function CategoryPage() {
           nowDate
         );
       })
-      .map((subcategory) => subcategory.name);
-    return ["All", ...labels];
+      .map((subcategory) => ({
+        id: subcategory.id || slugify(subcategory.name),
+        name: subcategory.name,
+      }));
+    return [{ id: "all", name: "All" }, ...options];
   }, [
     data.subcategories,
     dayName,
@@ -265,49 +281,216 @@ export default function CategoryPage() {
     scheduleMaps,
   ]);
 
+  const filteredItems = useMemo(() => {
+    if (activeSubcategoryId === "all") return visibleItems;
+    return visibleItems.filter((item) => {
+      const key =
+        item.subcategoryId ??
+        (item.subcategoryName ? slugify(item.subcategoryName) : "");
+      return key === activeSubcategoryId;
+    });
+  }, [activeSubcategoryId, visibleItems]);
+
+  const activeCategoryLabel = useMemo(() => {
+    if (!resolvedCategoryId) return "Items";
+    return (
+      data.categories.find((category) => category.id === resolvedCategoryId)
+        ?.name ?? "Items"
+    );
+  }, [data.categories, resolvedCategoryId]);
+
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.left}>
-        {subcategoryLabels.map((s) => (
-          <Text key={s} style={styles.sub}>{s}</Text>
-        ))}
-      </ScrollView>
+      <View style={styles.header}>
+        <Text style={styles.title}>{activeCategoryLabel}</Text>
+        <Text style={styles.subtitle}>Fresh picks curated for you</Text>
+      </View>
 
-      <ScrollView style={styles.right}>
-        {loading && <Text style={styles.status}>Loading items...</Text>}
-        {error && <Text style={[styles.status, styles.error]}>{error}</Text>}
-        {!loading && !error && visibleItems.length === 0 && (
-          <Text style={styles.status}>No items available.</Text>
-        )}
-        {!loading &&
-          !error &&
-          visibleItems.map((item) => (
-            <View key={item.itemId || item.id} style={styles.item}>
-              <Text style={styles.name}>{item.name}</Text>
-              <Text style={styles.price}>
-                £{Number.isFinite(item.price) ? item.price.toFixed(2) : "0.00"}
-              </Text>
-            </View>
-          ))}
-      </ScrollView>
+      <View style={styles.content}>
+        <ScrollView style={styles.left} contentContainerStyle={styles.leftContent}>
+          {subcategoryOptions.map((subcategory) => {
+            const active = subcategory.id === activeSubcategoryId;
+            return (
+              <Pressable
+                key={subcategory.id}
+                onPress={() => setActiveSubcategoryId(subcategory.id)}
+                style={[styles.subcategoryChip, active && styles.subcategoryChipActive]}
+              >
+                <Text
+                  style={[
+                    styles.subcategoryText,
+                    active && styles.subcategoryTextActive,
+                  ]}
+                >
+                  {subcategory.name}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        <ScrollView style={styles.right} contentContainerStyle={styles.rightContent}>
+          {loading && <Text style={styles.status}>Loading items...</Text>}
+          {error && <Text style={[styles.status, styles.error]}>{error}</Text>}
+          {!loading && !error && filteredItems.length === 0 && (
+            <Text style={styles.status}>No items available.</Text>
+          )}
+          {!loading &&
+            !error &&
+            filteredItems.map((item) => (
+              <View key={item.itemId || item.id} style={styles.itemCard}>
+                <View style={styles.itemImageWrap}>
+                  {resolveImageUri(item.imageUrl, item.imageKey) ? (
+                    <Image
+                      source={{
+                        uri: resolveImageUri(item.imageUrl, item.imageKey) ?? "",
+                      }}
+                      style={styles.itemImage}
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <Text style={styles.itemEmoji}>🥕</Text>
+                  )}
+                </View>
+                <View style={styles.itemMeta}>
+                  <Text style={styles.itemName}>{item.name}</Text>
+                  {item.description ? (
+                    <Text style={styles.itemDescription} numberOfLines={2}>
+                      {item.description}
+                    </Text>
+                  ) : null}
+                  <View style={styles.itemFooter}>
+                    <Text style={styles.itemPrice}>
+                      £{Number.isFinite(item.price) ? item.price.toFixed(2) : "0.00"}
+                    </Text>
+                    {item.tag ? (
+                      <View style={styles.itemTag}>
+                        <Text style={styles.itemTagText}>{item.tag}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+              </View>
+            ))}
+        </ScrollView>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, flexDirection: "row" },
-  left: { width: 100, backgroundColor: "#f3f4f6" },
-  sub: { padding: 12, fontWeight: "600" },
-  right: { flex: 1, padding: 16 },
+  container: { flex: 1, backgroundColor: "#f8fafc" },
+  header: {
+    paddingTop: 54,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#111827",
+  },
+  subtitle: {
+    marginTop: 6,
+    fontSize: 13,
+    color: "#6b7280",
+  },
+  content: {
+    flex: 1,
+    flexDirection: "row",
+  },
+  left: {
+    width: 120,
+    backgroundColor: "#f1f5f9",
+  },
+  leftContent: {
+    paddingVertical: 16,
+    paddingHorizontal: 10,
+    gap: 10,
+  },
+  subcategoryChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 16,
+    backgroundColor: "#e2e8f0",
+  },
+  subcategoryChipActive: {
+    backgroundColor: "#111827",
+  },
+  subcategoryText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#334155",
+  },
+  subcategoryTextActive: {
+    color: "#fff",
+  },
+  right: { flex: 1 },
+  rightContent: {
+    padding: 16,
+    gap: 14,
+  },
   status: { color: "#6b7280", marginBottom: 12 },
   error: { color: "#dc2626" },
-  item: {
+  itemCard: {
+    flexDirection: "row",
+    gap: 12,
+    padding: 12,
+    borderRadius: 16,
     backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
-  name: { fontWeight: "700" },
-  price: { marginTop: 6, color: "#16a34a" },
+  itemImageWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 16,
+    backgroundColor: "#f8fafc",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  itemImage: {
+    width: "100%",
+    height: "100%",
+  },
+  itemEmoji: {
+    fontSize: 28,
+  },
+  itemMeta: {
+    flex: 1,
+  },
+  itemName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#0f172a",
+  },
+  itemDescription: {
+    marginTop: 4,
+    fontSize: 12,
+    color: "#64748b",
+  },
+  itemFooter: {
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  itemPrice: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#16a34a",
+  },
+  itemTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "#fef3c7",
+  },
+  itemTagText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#92400e",
+    textTransform: "uppercase",
+  },
 });

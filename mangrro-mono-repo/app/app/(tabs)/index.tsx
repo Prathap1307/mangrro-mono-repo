@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
 
 import { fetchHomepageData } from "../../lib/aws/homepage";
+import { resolveImageUri } from "../../lib/images";
 import {
   isCategoryOpen,
   isEntityActive,
   isScheduleOpen,
 } from "../../lib/visibility/items";
+import { reverseGeocode } from "../../lib/address";
 import type {
   Category,
   CategoryRaw,
@@ -131,6 +134,8 @@ export default function Home() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [mainCatSched, setMainCatSched] = useState<MainCategorySchedule[]>([]);
   const [catSched, setCatSched] = useState<CategorySchedule[]>([]);
+  const [locationLabel, setLocationLabel] = useState("Detecting location...");
+  const [locationDetail, setLocationDetail] = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -190,6 +195,57 @@ export default function Home() {
 
     return () => {
       mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadLocation = async () => {
+      if (!navigator?.geolocation) {
+        if (active) {
+          setLocationLabel("Set your location");
+          setLocationDetail("Location services unavailable");
+        }
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            const { latitude, longitude } = position.coords;
+            const address = await reverseGeocode(latitude, longitude);
+            if (!active) return;
+            if (address) {
+              setLocationLabel(address.line1 || "Your location");
+              setLocationDetail(
+                [address.town, address.postcode].filter(Boolean).join(", ")
+              );
+            } else {
+              setLocationLabel("Set your location");
+              setLocationDetail("Tap to update");
+            }
+          } catch (error) {
+            if (active) {
+              setLocationLabel("Set your location");
+              setLocationDetail("Tap to update");
+            }
+          }
+        },
+        () => {
+          if (active) {
+            setLocationLabel("Set your location");
+            setLocationDetail("Enable location access");
+          }
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+      );
+    };
+
+    loadLocation();
+
+    return () => {
+      active = false;
     };
   }, []);
 
@@ -280,10 +336,36 @@ export default function Home() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Text style={styles.title}>Mangrro</Text>
-        <Text style={styles.subtitle}>
-          Browse what&apos;s available right now.
-        </Text>
+        <View style={styles.locationRow}>
+          <View>
+            <Text style={styles.locationBadge}>Delivering to</Text>
+            <Text style={styles.locationText}>{locationLabel}</Text>
+            {locationDetail ? (
+              <Text style={styles.locationSubtext}>{locationDetail}</Text>
+            ) : null}
+          </View>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>M</Text>
+          </View>
+        </View>
+        <View style={styles.searchRow}>
+          <View style={styles.searchInput}>
+            <Text style={styles.searchHint}>Search for Eggs</Text>
+          </View>
+          <View style={styles.bookmark}>
+            <Text style={styles.bookmarkText}>★</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.banner}>
+        <View style={styles.bannerText}>
+          <Text style={styles.bannerTitle}>Coming soon to your area!</Text>
+          <Text style={styles.bannerSubtitle}>Try changing your location</Text>
+        </View>
+        <View style={styles.bannerBadge}>
+          <Text style={styles.bannerBadgeText}>🚫</Text>
+        </View>
       </View>
 
       {loading ? (
@@ -329,6 +411,19 @@ export default function Home() {
                   <View style={styles.categoryGrid}>
                     {childCategories.map((child) => (
                       <View key={child.id} style={styles.categoryCard}>
+                        <View style={styles.categoryImage}>
+                          {resolveImageUri(child.imageUrl, child.imageKey) ? (
+                            <Image
+                              source={{
+                                uri: resolveImageUri(child.imageUrl, child.imageKey) ?? "",
+                              }}
+                              style={styles.categoryImageAsset}
+                              contentFit="cover"
+                            />
+                          ) : (
+                            <Text style={styles.categoryEmoji}>🥬</Text>
+                          )}
+                        </View>
                         <Text style={styles.categoryName}>{child.name}</Text>
                         {child.highlightText ? (
                           <Text style={styles.categoryHint}>
@@ -353,18 +448,110 @@ const styles = StyleSheet.create({
   content: { paddingBottom: 32 },
   header: {
     paddingHorizontal: 20,
-    paddingTop: 56,
-    paddingBottom: 16,
+    paddingTop: 54,
+    paddingBottom: 12,
+    gap: 16,
   },
-  title: {
-    fontSize: 30,
-    fontWeight: "800",
-    color: "#0f172a",
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  subtitle: {
-    marginTop: 6,
+  locationBadge: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  locationText: {
+    marginTop: 4,
     fontSize: 14,
-    color: "#64748b",
+    fontWeight: "600",
+    color: "#111827",
+  },
+  locationSubtext: {
+    marginTop: 2,
+    fontSize: 12,
+    color: "#6b7280",
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#e5e7eb",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: {
+    fontWeight: "700",
+    color: "#374151",
+  },
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  searchInput: {
+    flex: 1,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  searchHint: {
+    fontSize: 14,
+    color: "#9ca3af",
+  },
+  bookmark: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+  },
+  bookmarkText: {
+    fontSize: 18,
+    color: "#111827",
+  },
+  banner: {
+    marginHorizontal: 20,
+    marginTop: 8,
+    padding: 18,
+    borderRadius: 20,
+    backgroundColor: "#fdecec",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  bannerText: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  bannerTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#1f2937",
+  },
+  bannerSubtitle: {
+    marginTop: 6,
+    fontSize: 13,
+    color: "#6b7280",
+  },
+  bannerBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bannerBadgeText: {
+    fontSize: 20,
   },
   placeholderGrid: {
     paddingHorizontal: 20,
@@ -395,13 +582,14 @@ const styles = StyleSheet.create({
   sectionStack: {
     paddingHorizontal: 20,
     gap: 20,
+    marginTop: 16,
   },
   section: {
     backgroundColor: "#fff",
     borderRadius: 20,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: "#e5e7eb",
   },
   sectionHeader: {
     flexDirection: "row",
@@ -412,7 +600,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#0f172a",
+    color: "#111827",
     flex: 1,
   },
   sectionHighlight: {
@@ -426,28 +614,48 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
-    rowGap: 12,
+    rowGap: 16,
   },
   categoryCard: {
     width: "47%",
-    minHeight: 88,
-    borderRadius: 16,
+    minHeight: 128,
+    borderRadius: 18,
     padding: 12,
-    backgroundColor: "#f1f5f9",
+    backgroundColor: "#f8fbff",
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: "#e5e7eb",
     justifyContent: "center",
+    alignItems: "center",
+  },
+  categoryImage: {
+    width: 64,
+    height: 64,
+    borderRadius: 18,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+    overflow: "hidden",
+  },
+  categoryImageAsset: {
+    width: "100%",
+    height: "100%",
+  },
+  categoryEmoji: {
+    fontSize: 28,
   },
   categoryName: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#0f172a",
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#111827",
+    textAlign: "center",
   },
   categoryHint: {
-    marginTop: 6,
+    marginTop: 4,
     fontSize: 11,
     color: "#64748b",
     textTransform: "uppercase",
+    textAlign: "center",
   },
   emptyChildCard: {
     paddingVertical: 16,
