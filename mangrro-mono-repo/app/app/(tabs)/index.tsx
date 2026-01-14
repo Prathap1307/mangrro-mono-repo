@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
 
 import { fetchHomepageData } from "../../lib/aws/homepage";
 import {
@@ -7,6 +8,7 @@ import {
   isEntityActive,
   isScheduleOpen,
 } from "../../lib/visibility/items";
+import { reverseGeocode } from "../../lib/address";
 import type {
   Category,
   CategoryRaw,
@@ -131,6 +133,8 @@ export default function Home() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [mainCatSched, setMainCatSched] = useState<MainCategorySchedule[]>([]);
   const [catSched, setCatSched] = useState<CategorySchedule[]>([]);
+  const [locationLabel, setLocationLabel] = useState("Detecting location...");
+  const [locationDetail, setLocationDetail] = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -190,6 +194,57 @@ export default function Home() {
 
     return () => {
       mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadLocation = async () => {
+      if (!navigator?.geolocation) {
+        if (active) {
+          setLocationLabel("Set your location");
+          setLocationDetail("Location services unavailable");
+        }
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            const { latitude, longitude } = position.coords;
+            const address = await reverseGeocode(latitude, longitude);
+            if (!active) return;
+            if (address) {
+              setLocationLabel(address.line1 || "Your location");
+              setLocationDetail(
+                [address.town, address.postcode].filter(Boolean).join(", ")
+              );
+            } else {
+              setLocationLabel("Set your location");
+              setLocationDetail("Tap to update");
+            }
+          } catch (error) {
+            if (active) {
+              setLocationLabel("Set your location");
+              setLocationDetail("Tap to update");
+            }
+          }
+        },
+        () => {
+          if (active) {
+            setLocationLabel("Set your location");
+            setLocationDetail("Enable location access");
+          }
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+      );
+    };
+
+    loadLocation();
+
+    return () => {
+      active = false;
     };
   }, []);
 
@@ -282,8 +337,11 @@ export default function Home() {
       <View style={styles.header}>
         <View style={styles.locationRow}>
           <View>
-            <Text style={styles.locationBadge}>New</Text>
-            <Text style={styles.locationText}>Dhobikana Street, 20 A Block</Text>
+            <Text style={styles.locationBadge}>Delivering to</Text>
+            <Text style={styles.locationText}>{locationLabel}</Text>
+            {locationDetail ? (
+              <Text style={styles.locationSubtext}>{locationDetail}</Text>
+            ) : null}
           </View>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>M</Text>
@@ -353,7 +411,15 @@ export default function Home() {
                     {childCategories.map((child) => (
                       <View key={child.id} style={styles.categoryCard}>
                         <View style={styles.categoryImage}>
-                          <Text style={styles.categoryEmoji}>🥬</Text>
+                          {child.imageUrl || child.imageKey ? (
+                            <Image
+                              source={{ uri: child.imageUrl ?? child.imageKey ?? "" }}
+                              style={styles.categoryImageAsset}
+                              contentFit="cover"
+                            />
+                          ) : (
+                            <Text style={styles.categoryEmoji}>🥬</Text>
+                          )}
                         </View>
                         <Text style={styles.categoryName}>{child.name}</Text>
                         {child.highlightText ? (
@@ -395,6 +461,12 @@ const styles = StyleSheet.create({
   },
   locationText: {
     marginTop: 4,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  locationSubtext: {
+    marginTop: 2,
     fontSize: 12,
     color: "#6b7280",
   },
@@ -560,6 +632,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 10,
+    overflow: "hidden",
+  },
+  categoryImageAsset: {
+    width: "100%",
+    height: "100%",
   },
   categoryEmoji: {
     fontSize: 28,
