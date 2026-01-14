@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
 
 import { fetchHomepageData } from "../../lib/aws/homepage";
+import { resolveImageUri } from "../../lib/images";
 import {
   isCategoryOpen,
   isEntityActive,
@@ -411,9 +412,11 @@ export default function Home() {
                     {childCategories.map((child) => (
                       <View key={child.id} style={styles.categoryCard}>
                         <View style={styles.categoryImage}>
-                          {child.imageUrl || child.imageKey ? (
+                          {resolveImageUri(child.imageUrl, child.imageKey) ? (
                             <Image
-                              source={{ uri: child.imageUrl ?? child.imageKey ?? "" }}
+                              source={{
+                                uri: resolveImageUri(child.imageUrl, child.imageKey) ?? "",
+                              }}
                               style={styles.categoryImageAsset}
                               contentFit="cover"
                             />

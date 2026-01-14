@@ -3,6 +3,7 @@ import { useLocalSearchParams } from "expo-router";
 import { Image } from "expo-image";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { fetchItemsData, resolveCategoryId } from "../../lib/aws/items";
+import { resolveImageUri } from "../../lib/images";
 import {
   isItemListVisible,
   isSubcategoryVisible,
@@ -339,9 +340,11 @@ export default function CategoryPage() {
             filteredItems.map((item) => (
               <View key={item.itemId || item.id} style={styles.itemCard}>
                 <View style={styles.itemImageWrap}>
-                  {item.imageUrl || item.imageKey ? (
+                  {resolveImageUri(item.imageUrl, item.imageKey) ? (
                     <Image
-                      source={{ uri: item.imageUrl ?? item.imageKey ?? "" }}
+                      source={{
+                        uri: resolveImageUri(item.imageUrl, item.imageKey) ?? "",
+                      }}
                       style={styles.itemImage}
                       contentFit="cover"
                     />
