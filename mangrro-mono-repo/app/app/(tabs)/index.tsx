@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
+import { Link } from "expo-router";
 
 import { fetchHomepageData } from "../../lib/aws/homepage";
 import { resolveImageUri } from "../../lib/images";
@@ -410,27 +411,41 @@ export default function Home() {
                 ) : (
                   <View style={styles.categoryGrid}>
                     {childCategories.map((child) => (
-                      <View key={child.id} style={styles.categoryCard}>
-                        <View style={styles.categoryImage}>
-                          {resolveImageUri(child.imageUrl, child.imageKey) ? (
-                            <Image
-                              source={{
-                                uri: resolveImageUri(child.imageUrl, child.imageKey) ?? "",
-                              }}
-                              style={styles.categoryImageAsset}
-                              contentFit="cover"
-                            />
-                          ) : (
-                            <Text style={styles.categoryEmoji}>🥬</Text>
-                          )}
-                        </View>
-                        <Text style={styles.categoryName}>{child.name}</Text>
-                        {child.highlightText ? (
-                          <Text style={styles.categoryHint}>
-                            {child.highlightText}
-                          </Text>
-                        ) : null}
-                      </View>
+                      <Link
+                        key={child.id}
+                        href={`/category/${child.id}`}
+                        asChild
+                      >
+                        <Pressable
+                          style={styles.categoryCard}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Open ${child.name} category`}
+                        >
+                          <View style={styles.categoryImage}>
+                            {resolveImageUri(child.imageUrl, child.imageKey) ? (
+                              <Image
+                                source={{
+                                  uri:
+                                    resolveImageUri(
+                                      child.imageUrl,
+                                      child.imageKey
+                                    ) ?? "",
+                                }}
+                                style={styles.categoryImageAsset}
+                                contentFit="cover"
+                              />
+                            ) : (
+                              <Text style={styles.categoryEmoji}>🥬</Text>
+                            )}
+                          </View>
+                          <Text style={styles.categoryName}>{child.name}</Text>
+                          {child.highlightText ? (
+                            <Text style={styles.categoryHint}>
+                              {child.highlightText}
+                            </Text>
+                          ) : null}
+                        </Pressable>
+                      </Link>
                     ))}
                   </View>
                 )}
