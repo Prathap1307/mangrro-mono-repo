@@ -4,6 +4,9 @@ import { docClient } from "./client";
 import { TABLES } from "./tables";
 import type { CategoryTimeslotDay, DayName } from "../../types/homepage";
 
+const apiBaseUrl =
+  process.env.EXPO_PUBLIC_WEB_BASE_URL ?? process.env.EXPO_PUBLIC_API_BASE_URL;
+
 interface MainCategoryRaw {
   id?: string;
   mainCategoryId?: string;
@@ -272,6 +275,74 @@ export const resolveCategoryId = (
 };
 
 export const fetchItemsData = async () => {
+  const apiData = await (async () => {
+    if (!apiBaseUrl) return null;
+    const base = apiBaseUrl.replace(/\/+$/, "");
+
+    try {
+      const [
+        itemsRes,
+        categoriesRes,
+        subcategoriesRes,
+        mainCategoriesRes,
+        categorySchedulesRes,
+        subcategorySchedulesRes,
+        mainCategorySchedulesRes,
+        itemSchedulesRes,
+      ] = await Promise.all([
+        fetch(`${base}/api/items`),
+        fetch(`${base}/api/categories`),
+        fetch(`${base}/api/subcategories`),
+        fetch(`${base}/api/main-categories`),
+        fetch(`${base}/api/schedule/category`),
+        fetch(`${base}/api/schedule/subcategory`),
+        fetch(`${base}/api/schedule/main-category`),
+        fetch(`${base}/api/schedule/item`),
+      ]);
+
+      if (!itemsRes.ok || !categoriesRes.ok) return null;
+
+      const [
+        rawItems,
+        rawCategories,
+        rawSubcategories,
+        rawMainCategories,
+        rawCategorySchedules,
+        rawSubcategorySchedules,
+        rawMainCategorySchedules,
+        rawItemSchedules,
+      ] = await Promise.all([
+        itemsRes.json(),
+        categoriesRes.json(),
+        subcategoriesRes.ok ? subcategoriesRes.json() : [],
+        mainCategoriesRes.ok ? mainCategoriesRes.json() : [],
+        categorySchedulesRes.ok ? categorySchedulesRes.json() : [],
+        subcategorySchedulesRes.ok ? subcategorySchedulesRes.json() : [],
+        mainCategorySchedulesRes.ok ? mainCategorySchedulesRes.json() : [],
+        itemSchedulesRes.ok ? itemSchedulesRes.json() : [],
+      ]);
+
+      return {
+        rawItems: Array.isArray(rawItems) ? rawItems : [],
+        rawCategories: Array.isArray(rawCategories) ? rawCategories : [],
+        rawSubcategories: Array.isArray(rawSubcategories) ? rawSubcategories : [],
+        rawMainCategories: Array.isArray(rawMainCategories) ? rawMainCategories : [],
+        rawCategorySchedules: Array.isArray(rawCategorySchedules)
+          ? rawCategorySchedules
+          : [],
+        rawSubcategorySchedules: Array.isArray(rawSubcategorySchedules)
+          ? rawSubcategorySchedules
+          : [],
+        rawMainCategorySchedules: Array.isArray(rawMainCategorySchedules)
+          ? rawMainCategorySchedules
+          : [],
+        rawItemSchedules: Array.isArray(rawItemSchedules) ? rawItemSchedules : [],
+      };
+    } catch {
+      return null;
+    }
+  })();
+
   const [
     rawItems,
     rawCategories,
@@ -281,16 +352,27 @@ export const fetchItemsData = async () => {
     rawSubcategorySchedules,
     rawMainCategorySchedules,
     rawItemSchedules,
-  ] = await Promise.all([
-    scanTable(TABLES.ITEMS),
-    scanTable(TABLES.CATEGORIES),
-    scanTable(TABLES.SUBCATEGORIES),
-    scanTable(TABLES.MAIN_CATEGORIES),
-    scanTable(TABLES.CATEGORY_SCHEDULES),
-    scanTable(TABLES.SUBCATEGORY_SCHEDULES),
-    scanTable(TABLES.MAIN_CATEGORY_SCHEDULES),
-    scanTable(TABLES.ITEM_SCHEDULES),
-  ]);
+  ] = apiData
+    ? [
+        apiData.rawItems,
+        apiData.rawCategories,
+        apiData.rawSubcategories,
+        apiData.rawMainCategories,
+        apiData.rawCategorySchedules,
+        apiData.rawSubcategorySchedules,
+        apiData.rawMainCategorySchedules,
+        apiData.rawItemSchedules,
+      ]
+    : await Promise.all([
+        scanTable(TABLES.ITEMS),
+        scanTable(TABLES.CATEGORIES),
+        scanTable(TABLES.SUBCATEGORIES),
+        scanTable(TABLES.MAIN_CATEGORIES),
+        scanTable(TABLES.CATEGORY_SCHEDULES),
+        scanTable(TABLES.SUBCATEGORY_SCHEDULES),
+        scanTable(TABLES.MAIN_CATEGORY_SCHEDULES),
+        scanTable(TABLES.ITEM_SCHEDULES),
+      ]);
 
   const items = rawItems.map(normalizeItem);
   const categories = rawCategories.map(normalizeCategory).filter(Boolean) as Category[];
