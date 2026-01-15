@@ -566,6 +566,17 @@ const styles = StyleSheet.create({
   searchText: {
     fontSize: 16,
   },
+  countBadge: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: "#dcfce7",
+  },
+  countText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#166534",
+  },
   content: {
     flex: 1,
     flexDirection: "row",
