@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Image } from "expo-image";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { fetchItemsData, resolveCategoryId } from "../../lib/aws/items";
@@ -63,6 +63,7 @@ const resolveSubcategorySchedule = (
 
 export default function CategoryPage() {
   const { categoryId } = useLocalSearchParams();
+  const router = useRouter();
   const [data, setData] = useState<ItemState>({
     items: [],
     categories: [],
@@ -291,6 +292,10 @@ export default function CategoryPage() {
     });
   }, [activeSubcategoryId, visibleItems]);
 
+  const itemCountLabel = `${filteredItems.length} item${
+    filteredItems.length === 1 ? "" : "s"
+  }`;
+
   const activeCategoryLabel = useMemo(() => {
     if (!resolvedCategoryId) return "Items";
     return (
@@ -302,8 +307,16 @@ export default function CategoryPage() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>{activeCategoryLabel}</Text>
-        <Text style={styles.subtitle}>Fresh picks curated for you</Text>
+        <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <Text style={styles.backText}>Back</Text>
+        </Pressable>
+        <View style={styles.headerTitle}>
+          <Text style={styles.title}>{activeCategoryLabel}</Text>
+          <Text style={styles.subtitle}>Fresh picks curated for you</Text>
+        </View>
+        <View style={styles.countBadge}>
+          <Text style={styles.countText}>{itemCountLabel}</Text>
+        </View>
       </View>
 
       <View style={styles.content}>
@@ -384,6 +397,23 @@ const styles = StyleSheet.create({
     paddingTop: 54,
     paddingHorizontal: 20,
     paddingBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  backButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: "#e2e8f0",
+  },
+  backText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0f172a",
+  },
+  headerTitle: {
+    flex: 1,
   },
   title: {
     fontSize: 24,
@@ -394,6 +424,17 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 13,
     color: "#6b7280",
+  },
+  countBadge: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: "#dcfce7",
+  },
+  countText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#166534",
   },
   content: {
     flex: 1,
