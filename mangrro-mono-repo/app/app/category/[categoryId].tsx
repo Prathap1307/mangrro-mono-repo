@@ -64,7 +64,8 @@ const resolveSubcategorySchedule = (
 export default function CategoryPage() {
   const { categoryId } = useLocalSearchParams();
   const router = useRouter();
-  const [activeFilter, setActiveFilter] = useState("featured");
+  const [activeFilter, setActiveFilter] = useState("price-drop");
+  const [activeSort, setActiveSort] = useState("sort");
   const [data, setData] = useState<ItemState>({
     items: [],
     categories: [],
@@ -311,10 +312,10 @@ export default function CategoryPage() {
   const banners = [
     {
       id: "banner-1",
-      title: "Limited seasonal bundles",
-      subtitle: "Save up to 25% across signature items",
+      title: "What's in your paratha?",
+      subtitle: "Get all your paratha essentials delivered fresh in minutes.",
       image:
-        "https://images.unsplash.com/photo-1473093226795-af9932fe5856?auto=format&fit=crop&w=900&q=80",
+        "https://images.unsplash.com/photo-1505576399279-565b52d4ac71?auto=format&fit=crop&w=900&q=80",
     },
     {
       id: "banner-2",
@@ -341,7 +342,6 @@ export default function CategoryPage() {
         </Pressable>
         <View style={styles.headerTitle}>
           <Text style={styles.title}>{activeCategoryLabel}</Text>
-          <Text style={styles.subtitle}>Fresh picks curated for you</Text>
         </View>
         <Pressable style={styles.searchButton} accessibilityRole="button">
           <Text style={styles.searchText}>🔍</Text>
@@ -362,15 +362,22 @@ export default function CategoryPage() {
                 onPress={() => setActiveSubcategoryId(subcategory.id)}
                 style={[styles.subcategoryChip, active && styles.subcategoryChipActive]}
               >
-                <View
-                  style={[
-                    styles.subcategoryIcon,
-                    active && styles.subcategoryIconActive,
-                  ]}
-                >
-                  <Text style={styles.subcategoryIconText}>
-                    {subcategory.name.slice(0, 1).toUpperCase()}
-                  </Text>
+                <View style={[styles.subcategoryIcon, active && styles.subcategoryIconActive]}>
+                  {resolveImageUri(subcategory.imageUrl, subcategory.imageKey) ? (
+                    <Image
+                      source={{
+                        uri:
+                          resolveImageUri(subcategory.imageUrl, subcategory.imageKey) ??
+                          "",
+                      }}
+                      style={styles.subcategoryIconImage}
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <Text style={styles.subcategoryIconText}>
+                      {subcategory.name.slice(0, 1).toUpperCase()}
+                    </Text>
+                  )}
                 </View>
                 <Text
                   style={[
@@ -426,23 +433,63 @@ export default function CategoryPage() {
                   />
                 ))}
               </View>
-              <View style={styles.filterRow}>
+              <View style={styles.sortRow}>
+                <View style={styles.sortIcon}>
+                  <Text style={styles.sortIconText}>≡</Text>
+                </View>
                 {[
-                  { id: "featured", label: "Featured" },
-                  { id: "price-low", label: "Price: Low" },
-                  { id: "price-high", label: "Price: High" },
+                  { id: "sort", label: "Sort By" },
+                  { id: "type", label: "Type" },
+                  { id: "price", label: "Price" },
+                ].map((option) => {
+                  const active = option.id === activeSort;
+                  return (
+                    <Pressable
+                      key={option.id}
+                      onPress={() => setActiveSort(option.id)}
+                      style={[styles.sortChip, active && styles.sortChipActive]}
+                    >
+                      <Text
+                        style={[
+                          styles.sortText,
+                          active && styles.sortTextActive,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.sortCaret,
+                          active && styles.sortCaretActive,
+                        ]}
+                      >
+                        ˅
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <View style={styles.quickFilterRow}>
+                {[
+                  { id: "price-drop", label: "Price Drop", icon: "💸" },
+                  { id: "fresh", label: "Fresh", icon: "🥬" },
+                  { id: "trending", label: "Trending", icon: "🔥" },
                 ].map((filter) => {
                   const active = filter.id === activeFilter;
                   return (
                     <Pressable
                       key={filter.id}
                       onPress={() => setActiveFilter(filter.id)}
-                      style={[styles.filterChip, active && styles.filterChipActive]}
+                      style={[
+                        styles.quickFilterChip,
+                        active && styles.quickFilterChipActive,
+                      ]}
                     >
+                      <Text style={styles.quickFilterIcon}>{filter.icon}</Text>
                       <Text
                         style={[
-                          styles.filterText,
-                          active && styles.filterTextActive,
+                          styles.quickFilterText,
+                          active && styles.quickFilterTextActive,
                         ]}
                       >
                         {filter.label}
@@ -450,18 +497,17 @@ export default function CategoryPage() {
                     </Pressable>
                   );
                 })}
-                <View style={styles.itemCountPill}>
-                  <Text style={styles.itemCountText}>{itemCountLabel}</Text>
-                </View>
+              </View>
+              <View style={styles.itemCountRow}>
+                <Text style={styles.itemCountTitle}>{itemCountLabel}</Text>
               </View>
             </>
           )}
           {!loading && !error && filteredItems.length === 0 && (
             <Text style={styles.status}>No items available.</Text>
           )}
-          {!loading &&
-            !error &&
-            filteredItems.length > 0 && (
+          {!loading && !error && filteredItems.length > 0 && (
+            <>
               <View style={styles.itemGrid}>
                 {filteredItems.map((item) => (
                   <View key={item.itemId || item.id} style={styles.itemCard}>
@@ -508,7 +554,28 @@ export default function CategoryPage() {
                   </View>
                 ))}
               </View>
-            )}
+              <View style={styles.promoBanner}>
+                <Text style={styles.promoEmoji}>🐮</Text>
+                <View style={styles.promoTextWrap}>
+                  <Text style={styles.promoTitle}>
+                    Add ₹21 more to unlock ZERO FEE delivery
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.cartBar}>
+                <View style={styles.cartSummary}>
+                  <View style={styles.cartThumb} />
+                  <View>
+                    <Text style={styles.cartCount}>2 Items</Text>
+                    <Text style={styles.cartSubtext}>Add more to save more</Text>
+                  </View>
+                </View>
+                <Pressable style={styles.cartButton}>
+                  <Text style={styles.cartButtonText}>View Cart</Text>
+                </Pressable>
+              </View>
+            </>
+          )}
         </ScrollView>
       </View>
     </View>
@@ -566,31 +633,20 @@ const styles = StyleSheet.create({
   searchText: {
     fontSize: 16,
   },
-  countBadge: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    backgroundColor: "#dcfce7",
-  },
-  countText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#166534",
-  },
   content: {
     flex: 1,
     flexDirection: "row",
   },
   left: {
-    width: 120,
+    width: 92,
     backgroundColor: "#f8fafc",
     borderRightWidth: 1,
     borderRightColor: "#e5e7eb",
   },
   leftContent: {
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    gap: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    gap: 12,
   },
   subcategoryChip: {
     paddingVertical: 12,
@@ -613,6 +669,23 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 16,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  subcategoryChipActive: {
+    borderColor: "#111827",
+    shadowColor: "#0f172a",
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  subcategoryIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
     backgroundColor: "#f1f5f9",
     alignItems: "center",
     justifyContent: "center",
@@ -620,8 +693,12 @@ const styles = StyleSheet.create({
   subcategoryIconActive: {
     backgroundColor: "#e2e8f0",
   },
+  subcategoryIconImage: {
+    width: "100%",
+    height: "100%",
+  },
   subcategoryIconText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "700",
     color: "#111827",
   },
@@ -635,7 +712,7 @@ const styles = StyleSheet.create({
     color: "#111827",
   },
   subcategoryCount: {
-    fontSize: 11,
+    fontSize: 10,
     color: "#94a3b8",
   },
   right: { flex: 1 },
@@ -651,7 +728,7 @@ const styles = StyleSheet.create({
   },
   bannerCard: {
     width: 260,
-    height: 180,
+    height: 170,
     borderRadius: 24,
     overflow: "hidden",
   },
@@ -665,12 +742,12 @@ const styles = StyleSheet.create({
   },
   bannerContent: {
     position: "absolute",
-    bottom: 16,
+    bottom: 14,
     left: 16,
     right: 16,
   },
   bannerTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "700",
     color: "#fff",
   },
@@ -706,42 +783,94 @@ const styles = StyleSheet.create({
   bannerDotActive: {
     backgroundColor: "#111827",
   },
-  filterRow: {
+  sortRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
+    gap: 10,
     alignItems: "center",
   },
-  filterChip: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 999,
+  sortIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sortIconText: {
+    fontSize: 18,
+    color: "#475569",
+  },
+  sortChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 14,
     backgroundColor: "#fff",
     borderWidth: 1,
     borderColor: "#e5e7eb",
   },
-  filterChipActive: {
-    backgroundColor: "#111827",
+  sortChipActive: {
     borderColor: "#111827",
   },
-  filterText: {
+  sortText: {
     fontSize: 12,
     fontWeight: "600",
     color: "#475569",
   },
-  filterTextActive: {
-    color: "#fff",
+  sortTextActive: {
+    color: "#111827",
   },
-  itemCountPill: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    backgroundColor: "#f1f5f9",
+  sortCaret: {
+    fontSize: 12,
+    color: "#94a3b8",
   },
-  itemCountText: {
+  sortCaretActive: {
+    color: "#111827",
+  },
+  quickFilterRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  quickFilterChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  quickFilterChipActive: {
+    borderColor: "#2563eb",
+    backgroundColor: "#eff6ff",
+  },
+  quickFilterIcon: {
+    fontSize: 14,
+  },
+  quickFilterText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#64748b",
+    color: "#475569",
+  },
+  quickFilterTextActive: {
+    color: "#1d4ed8",
+  },
+  itemCountRow: {
+    marginTop: 4,
+  },
+  itemCountTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#94a3b8",
+    letterSpacing: 1.2,
   },
   itemGrid: {
     flexDirection: "row",
@@ -845,5 +974,69 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#92400e",
     textTransform: "uppercase",
+  },
+  promoBanner: {
+    marginTop: 8,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: "#fff7ed",
+    borderWidth: 1,
+    borderColor: "#fed7aa",
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "center",
+  },
+  promoEmoji: {
+    fontSize: 20,
+  },
+  promoTextWrap: {
+    flex: 1,
+  },
+  promoTitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#9a3412",
+  },
+  cartBar: {
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  cartSummary: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  cartThumb: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#e2e8f0",
+  },
+  cartCount: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  cartSubtext: {
+    fontSize: 11,
+    color: "#94a3b8",
+  },
+  cartButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    backgroundColor: "#2563eb",
+  },
+  cartButtonText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#fff",
   },
 });
