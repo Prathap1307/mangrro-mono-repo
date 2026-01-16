@@ -19,10 +19,9 @@ export default function BannerCarousel({ slides }: BannerCarouselProps) {
   const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
-    if (activeIndex >= slides.length) {
-      setActiveIndex(0);
-    }
-  }, [activeIndex, slides.length]);
+    if (!slides.length) return;
+    setActiveIndex((prev) => (prev >= slides.length ? 0 : prev));
+  }, [slides.length]);
 
   useEffect(() => {
     if (slides.length < 2) return;
