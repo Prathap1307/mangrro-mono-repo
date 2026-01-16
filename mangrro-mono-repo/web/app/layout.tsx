@@ -47,8 +47,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <CartProvider>
         <FavouritesProvider>
           <DeliveryProvider>
-            <html lang="en">
-              <body className="overflow-x-hidden">
+            <html lang="en-GB" suppressHydrationWarning>
+              <body className="overflow-x-hidden" suppressHydrationWarning>
                 <AppShell>{children}</AppShell>
 
                 {/* Live tracking bar */}

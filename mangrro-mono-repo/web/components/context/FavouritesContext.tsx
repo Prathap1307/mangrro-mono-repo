@@ -1,6 +1,13 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from "react";
 import type { Product } from "@/data/products";
 
 interface FavouritesContextValue {
@@ -53,21 +60,34 @@ export function FavouritesProvider({ children }: { children: ReactNode }) {
 
   const isFavourite = (id: string) => favourites.some((x) => x.id === id);
 
-  const reconcileAvailability = (availableIds: string[]) => {
-    if (!availableIds.length) return;
-    const availableSet = new Set(availableIds);
-    // Preserve favourites on list refreshes; we only flag availability so users
-    // don't lose saved items when schedules update.
-    setUnavailableFavouriteIds(() => {
-      const next: Record<string, boolean> = {};
-      for (const item of favourites) {
-        if (!availableSet.has(item.id)) {
-          next[item.id] = true;
+  const reconcileAvailability = useCallback(
+    (availableIds: string[]) => {
+      if (!availableIds.length) return;
+      const availableSet = new Set(availableIds);
+      // Preserve favourites on list refreshes; we only flag availability so users
+      // don't lose saved items when schedules update.
+      setUnavailableFavouriteIds((prev) => {
+        const next: Record<string, boolean> = {};
+        for (const item of favourites) {
+          if (!availableSet.has(item.id)) {
+            next[item.id] = true;
+          }
         }
-      }
-      return next;
-    });
-  };
+        const prevKeys = Object.keys(prev);
+        const nextKeys = Object.keys(next);
+        if (prevKeys.length !== nextKeys.length) {
+          return next;
+        }
+        for (const key of nextKeys) {
+          if (!prev[key]) {
+            return next;
+          }
+        }
+        return prev;
+      });
+    },
+    [favourites],
+  );
 
   const isFavouriteAvailable = (id: string) => !unavailableFavouriteIds[id];
 
