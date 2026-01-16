@@ -1,7 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Image } from "expo-image";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  FlatList,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import { fetchItemsData, resolveCategoryId } from "../../lib/aws/items";
 import { resolveImageUri } from "../../lib/images";
 import {
@@ -64,8 +72,9 @@ const resolveSubcategorySchedule = (
 export default function CategoryPage() {
   const { categoryId } = useLocalSearchParams();
   const router = useRouter();
-  const [activeFilter, setActiveFilter] = useState("price-drop");
-  const [activeSort, setActiveSort] = useState("sort");
+  const [activeFilter, setActiveFilter] = useState<
+    "featured" | "price-low" | "price-high"
+  >("featured");
   const [data, setData] = useState<ItemState>({
     items: [],
     categories: [],
@@ -81,6 +90,7 @@ export default function CategoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeSubcategoryId, setActiveSubcategoryId] = useState("all");
+  const { width } = useWindowDimensions();
 
   const resolvedCategoryId = Array.isArray(categoryId)
     ? categoryId[0]
@@ -209,6 +219,8 @@ export default function CategoryPage() {
       .map((subcategory) => ({
         id: subcategory.id || slugify(subcategory.name),
         name: subcategory.name,
+        imageUrl: subcategory.imageUrl,
+        imageKey: subcategory.imageKey,
       }));
     return [{ id: "all", name: "All" }, ...options];
   }, [
@@ -294,8 +306,34 @@ export default function CategoryPage() {
     });
   }, [activeSubcategoryId, visibleItems]);
 
-  const itemCountLabel = `${filteredItems.length} item${
-    filteredItems.length === 1 ? "" : "s"
+  const isFeaturedItem = useCallback((item: ItemMeta) => {
+    const featuredFlag =
+      (item as { featured?: boolean; isFeatured?: boolean }).featured ??
+      (item as { isFeatured?: boolean }).isFeatured;
+    if (typeof featuredFlag === "boolean") return featuredFlag;
+    const tag = item.tag?.toLowerCase() ?? "";
+    return (
+      tag.includes("featured") ||
+      tag.includes("fresh") ||
+      tag.includes("top") ||
+      tag.includes("pick")
+    );
+  }, []);
+
+  const sortedItems = useMemo(() => {
+    const items = [...filteredItems];
+    if (activeFilter === "price-low") {
+      return items.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
+    }
+    if (activeFilter === "price-high") {
+      return items.sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
+    }
+    const featured = items.filter(isFeaturedItem);
+    return featured.length > 0 ? featured : items;
+  }, [activeFilter, filteredItems, isFeaturedItem]);
+
+  const itemCountLabel = `${sortedItems.length} item${
+    sortedItems.length === 1 ? "" : "s"
   }`;
 
   const subcategoryCounts = useMemo(() => {
@@ -334,6 +372,8 @@ export default function CategoryPage() {
     );
   }, [data.categories, resolvedCategoryId]);
 
+  const leftWidth = Math.round(width * 0.24);
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -349,7 +389,10 @@ export default function CategoryPage() {
       </View>
 
       <View style={styles.content}>
-        <ScrollView style={styles.left} contentContainerStyle={styles.leftContent}>
+        <ScrollView
+          style={[styles.left, { width: leftWidth }]}
+          contentContainerStyle={styles.leftContent}
+        >
           {subcategoryOptions.map((subcategory) => {
             const active = subcategory.id === activeSubcategoryId;
             const count =
@@ -394,189 +437,171 @@ export default function CategoryPage() {
           })}
         </ScrollView>
 
-        <ScrollView style={styles.right} contentContainerStyle={styles.rightContent}>
-          {loading && <Text style={styles.status}>Loading items...</Text>}
-          {error && <Text style={[styles.status, styles.error]}>{error}</Text>}
-          {!loading && !error && (
+        <FlatList
+          data={sortedItems}
+          keyExtractor={(item, index) =>
+            item.itemId || item.id || `${item.name}-${index}`
+          }
+          numColumns={2}
+          columnWrapperStyle={styles.itemRow}
+          style={styles.right}
+          contentContainerStyle={styles.rightContent}
+          ListHeaderComponent={
             <>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.bannerRow}
-              >
-                {banners.map((banner) => (
-                  <View key={banner.id} style={styles.bannerCard}>
-                    <Image
-                      source={{ uri: banner.image }}
-                      style={styles.bannerImage}
-                      contentFit="cover"
-                    />
-                    <View style={styles.bannerOverlay} />
-                    <View style={styles.bannerContent}>
-                      <Text style={styles.bannerTitle}>{banner.title}</Text>
-                      <Text style={styles.bannerSubtitle}>{banner.subtitle}</Text>
-                      <View style={styles.bannerButton}>
-                        <Text style={styles.bannerButtonText}>Shop now</Text>
-                      </View>
-                    </View>
-                  </View>
-                ))}
-              </ScrollView>
-              <View style={styles.bannerDots}>
-                {banners.map((banner, index) => (
-                  <View
-                    key={banner.id}
-                    style={[
-                      styles.bannerDot,
-                      index === 0 && styles.bannerDotActive,
-                    ]}
-                  />
-                ))}
-              </View>
-              <View style={styles.sortRow}>
-                <View style={styles.sortIcon}>
-                  <Text style={styles.sortIconText}>≡</Text>
-                </View>
-                {[
-                  { id: "sort", label: "Sort By" },
-                  { id: "type", label: "Type" },
-                  { id: "price", label: "Price" },
-                ].map((option) => {
-                  const active = option.id === activeSort;
-                  return (
-                    <Pressable
-                      key={option.id}
-                      onPress={() => setActiveSort(option.id)}
-                      style={[styles.sortChip, active && styles.sortChipActive]}
-                    >
-                      <Text
-                        style={[
-                          styles.sortText,
-                          active && styles.sortTextActive,
-                        ]}
-                      >
-                        {option.label}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.sortCaret,
-                          active && styles.sortCaretActive,
-                        ]}
-                      >
-                        ˅
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <View style={styles.quickFilterRow}>
-                {[
-                  { id: "price-drop", label: "Price Drop", icon: "💸" },
-                  { id: "fresh", label: "Fresh", icon: "🥬" },
-                  { id: "trending", label: "Trending", icon: "🔥" },
-                ].map((filter) => {
-                  const active = filter.id === activeFilter;
-                  return (
-                    <Pressable
-                      key={filter.id}
-                      onPress={() => setActiveFilter(filter.id)}
-                      style={[
-                        styles.quickFilterChip,
-                        active && styles.quickFilterChipActive,
-                      ]}
-                    >
-                      <Text style={styles.quickFilterIcon}>{filter.icon}</Text>
-                      <Text
-                        style={[
-                          styles.quickFilterText,
-                          active && styles.quickFilterTextActive,
-                        ]}
-                      >
-                        {filter.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <View style={styles.itemCountRow}>
-                <Text style={styles.itemCountTitle}>{itemCountLabel}</Text>
-              </View>
-            </>
-          )}
-          {!loading && !error && filteredItems.length === 0 && (
-            <Text style={styles.status}>No items available.</Text>
-          )}
-          {!loading && !error && filteredItems.length > 0 && (
-            <>
-              <View style={styles.itemGrid}>
-                {filteredItems.map((item) => (
-                  <View key={item.itemId || item.id} style={styles.itemCard}>
-                    <View style={styles.itemImageWrap}>
-                      {resolveImageUri(item.imageUrl, item.imageKey) ? (
+              {loading && <Text style={styles.status}>Loading items...</Text>}
+              {error && <Text style={[styles.status, styles.error]}>{error}</Text>}
+              {!loading && !error && (
+                <>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.bannerRow}
+                  >
+                    {banners.map((banner) => (
+                      <View key={banner.id} style={styles.bannerCard}>
                         <Image
-                          source={{
-                            uri: resolveImageUri(item.imageUrl, item.imageKey) ?? "",
-                          }}
-                          style={styles.itemImage}
+                          source={{ uri: banner.image }}
+                          style={styles.bannerImage}
                           contentFit="cover"
                         />
-                      ) : (
-                        <Text style={styles.itemEmoji}>🥕</Text>
-                      )}
-                      <Pressable style={styles.itemBookmark}>
-                        <Text style={styles.itemBookmarkText}>☆</Text>
-                      </Pressable>
-                      <Pressable style={styles.itemAdd}>
-                        <Text style={styles.itemAddText}>＋</Text>
-                      </Pressable>
-                    </View>
-                    <View style={styles.itemMeta}>
-                      <Text style={styles.itemName} numberOfLines={2}>
-                        {item.name}
-                      </Text>
-                      {item.description ? (
-                        <Text style={styles.itemDescription} numberOfLines={2}>
-                          {item.description}
-                        </Text>
-                      ) : null}
-                      <Text style={styles.itemUnit}>1 Unit</Text>
-                      <View style={styles.itemFooter}>
-                        <Text style={styles.itemPrice}>
-                          £{Number.isFinite(item.price) ? item.price.toFixed(2) : "0.00"}
-                        </Text>
-                        {item.tag ? (
-                          <View style={styles.itemTag}>
-                            <Text style={styles.itemTagText}>{item.tag}</Text>
+                        <View style={styles.bannerOverlay} />
+                        <View style={styles.bannerContent}>
+                          <Text style={styles.bannerTitle}>{banner.title}</Text>
+                          <Text style={styles.bannerSubtitle}>{banner.subtitle}</Text>
+                          <View style={styles.bannerButton}>
+                            <Text style={styles.bannerButtonText}>Shop now</Text>
                           </View>
-                        ) : null}
+                        </View>
                       </View>
+                    ))}
+                  </ScrollView>
+                  <View style={styles.bannerDots}>
+                    {banners.map((banner, index) => (
+                      <View
+                        key={banner.id}
+                        style={[
+                          styles.bannerDot,
+                          index === 0 && styles.bannerDotActive,
+                        ]}
+                      />
+                    ))}
+                  </View>
+                  <View style={styles.quickFilterRow}>
+                    {[
+                      { id: "featured", label: "Featured", icon: "⭐" },
+                      { id: "price-low", label: "Price Low", icon: "⬇️" },
+                      { id: "price-high", label: "Price High", icon: "⬆️" },
+                    ].map((filter) => {
+                      const active = filter.id === activeFilter;
+                      return (
+                        <Pressable
+                          key={filter.id}
+                          onPress={() =>
+                            setActiveFilter(
+                              filter.id as "featured" | "price-low" | "price-high"
+                            )
+                          }
+                          style={[
+                            styles.quickFilterChip,
+                            active && styles.quickFilterChipActive,
+                          ]}
+                        >
+                          <Text style={styles.quickFilterIcon}>{filter.icon}</Text>
+                          <Text
+                            style={[
+                              styles.quickFilterText,
+                              active && styles.quickFilterTextActive,
+                            ]}
+                          >
+                            {filter.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  <View style={styles.itemCountRow}>
+                    <Text style={styles.itemCountTitle}>{itemCountLabel}</Text>
+                  </View>
+                </>
+              )}
+            </>
+          }
+          ListEmptyComponent={
+            !loading && !error ? (
+              <Text style={styles.status}>No items available.</Text>
+            ) : null
+          }
+          ListFooterComponent={
+            !loading && !error && sortedItems.length > 0 ? (
+              <>
+                <View style={styles.promoBanner}>
+                  <Text style={styles.promoEmoji}>🐮</Text>
+                  <View style={styles.promoTextWrap}>
+                    <Text style={styles.promoTitle}>
+                      Add ₹21 more to unlock ZERO FEE delivery
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.cartBar}>
+                  <View style={styles.cartSummary}>
+                    <View style={styles.cartThumb} />
+                    <View>
+                      <Text style={styles.cartCount}>2 Items</Text>
+                      <Text style={styles.cartSubtext}>Add more to save more</Text>
                     </View>
                   </View>
-                ))}
-              </View>
-              <View style={styles.promoBanner}>
-                <Text style={styles.promoEmoji}>🐮</Text>
-                <View style={styles.promoTextWrap}>
-                  <Text style={styles.promoTitle}>
-                    Add ₹21 more to unlock ZERO FEE delivery
-                  </Text>
+                  <Pressable style={styles.cartButton}>
+                    <Text style={styles.cartButtonText}>View Cart</Text>
+                  </Pressable>
                 </View>
-              </View>
-              <View style={styles.cartBar}>
-                <View style={styles.cartSummary}>
-                  <View style={styles.cartThumb} />
-                  <View>
-                    <Text style={styles.cartCount}>2 Items</Text>
-                    <Text style={styles.cartSubtext}>Add more to save more</Text>
-                  </View>
-                </View>
-                <Pressable style={styles.cartButton}>
-                  <Text style={styles.cartButtonText}>View Cart</Text>
+              </>
+            ) : null
+          }
+          renderItem={({ item }) => (
+            <View style={styles.itemCard}>
+              <View style={styles.itemImageWrap}>
+                {resolveImageUri(item.imageUrl, item.imageKey) ? (
+                  <Image
+                    source={{
+                      uri: resolveImageUri(item.imageUrl, item.imageKey) ?? "",
+                    }}
+                    style={styles.itemImage}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <Text style={styles.itemEmoji}>🥕</Text>
+                )}
+                <Pressable style={styles.itemBookmark}>
+                  <Text style={styles.itemBookmarkText}>☆</Text>
+                </Pressable>
+                <Pressable style={styles.itemAdd}>
+                  <Text style={styles.itemAddText}>＋</Text>
                 </Pressable>
               </View>
-            </>
+              <View style={styles.itemMeta}>
+                <Text style={styles.itemName} numberOfLines={2}>
+                  {item.name}
+                </Text>
+                {item.description ? (
+                  <Text style={styles.itemDescription} numberOfLines={2}>
+                    {item.description}
+                  </Text>
+                ) : null}
+                <Text style={styles.itemUnit}>1 Unit</Text>
+                <View style={styles.itemFooter}>
+                  <Text style={styles.itemPrice}>
+                    £{Number.isFinite(item.price) ? item.price.toFixed(2) : "0.00"}
+                  </Text>
+                  {item.tag ? (
+                    <View style={styles.itemTag}>
+                      <Text style={styles.itemTagText}>{item.tag}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+            </View>
           )}
-        </ScrollView>
+        />
       </View>
     </View>
   );
@@ -638,7 +663,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
   },
   left: {
-    width: 92,
     backgroundColor: "#f8fafc",
     borderRightWidth: 1,
     borderRightColor: "#e5e7eb",
@@ -666,29 +690,13 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
   },
   subcategoryIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    gap: 8,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-  },
-  subcategoryChipActive: {
-    borderColor: "#111827",
-    shadowColor: "#0f172a",
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-  },
-  subcategoryIcon: {
     width: 52,
     height: 52,
     borderRadius: 18,
-    backgroundColor: "#f1f5f9",
+    backgroundColor: "#f8fafc",
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
   subcategoryIconActive: {
     backgroundColor: "#e2e8f0",
@@ -783,54 +791,8 @@ const styles = StyleSheet.create({
   bannerDotActive: {
     backgroundColor: "#111827",
   },
-  sortRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    alignItems: "center",
-  },
-  sortIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sortIconText: {
-    fontSize: 18,
-    color: "#475569",
-  },
-  sortChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-  },
-  sortChipActive: {
-    borderColor: "#111827",
-  },
-  sortText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#475569",
-  },
-  sortTextActive: {
-    color: "#111827",
-  },
-  sortCaret: {
-    fontSize: 12,
-    color: "#94a3b8",
-  },
-  sortCaretActive: {
-    color: "#111827",
+  itemRow: {
+    justifyContent: "space-between",
   },
   quickFilterRow: {
     flexDirection: "row",
@@ -853,10 +815,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#eff6ff",
   },
   quickFilterIcon: {
-    fontSize: 14,
+    fontSize: 12,
   },
   quickFilterText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "600",
     color: "#475569",
   },
@@ -872,20 +834,15 @@ const styles = StyleSheet.create({
     color: "#94a3b8",
     letterSpacing: 1.2,
   },
-  itemGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    gap: 12,
-  },
   itemCard: {
-    width: "47%",
+    flex: 1,
     padding: 12,
     borderRadius: 18,
     backgroundColor: "#fff",
     borderWidth: 1,
     borderColor: "#e2e8f0",
     gap: 8,
+    marginBottom: 12,
   },
   itemImageWrap: {
     width: "100%",
