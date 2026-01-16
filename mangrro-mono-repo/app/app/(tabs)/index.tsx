@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  FlatList,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import { Image } from "expo-image";
 import { Link } from "expo-router";
 
@@ -130,6 +138,7 @@ const normalizeCategorySchedule = (raw: any): CategorySchedule | null => {
 export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { width } = useWindowDimensions();
 
   const [mainCategories, setMainCategories] = useState<MainCategory[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -333,6 +342,14 @@ export default function Home() {
   }, [sortedCategories]);
 
   const visibleMainCategories = derivedMainCategories;
+  const categoryCardSize = useMemo(() => {
+    const horizontalPadding = 40;
+    const sectionPadding = 32;
+    const columnGap = 12;
+    const available =
+      width - horizontalPadding - sectionPadding - columnGap * 3;
+    return Math.max(64, Math.floor(available / 4));
+  }, [width]);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -409,26 +426,33 @@ export default function Home() {
                     </Text>
                   </View>
                 ) : (
-                  <View style={styles.categoryGrid}>
-                    {childCategories.map((child) => (
-                      <Link
-                        key={child.id}
-                        href={`/category/${child.id}`}
-                        asChild
-                      >
+                  <FlatList
+                    data={childCategories}
+                    keyExtractor={(item) => item.id}
+                    numColumns={4}
+                    scrollEnabled={false}
+                    columnWrapperStyle={styles.categoryRow}
+                    renderItem={({ item }) => (
+                      <Link href={`/category/${item.id}`} asChild>
                         <Pressable
-                          style={styles.categoryCard}
+                          style={[
+                            styles.categoryCard,
+                            {
+                              width: categoryCardSize,
+                              height: categoryCardSize,
+                            },
+                          ]}
                           accessibilityRole="button"
-                          accessibilityLabel={`Open ${child.name} category`}
+                          accessibilityLabel={`Open ${item.name} category`}
                         >
                           <View style={styles.categoryImage}>
-                            {resolveImageUri(child.imageUrl, child.imageKey) ? (
+                            {resolveImageUri(item.imageUrl, item.imageKey) ? (
                               <Image
                                 source={{
                                   uri:
                                     resolveImageUri(
-                                      child.imageUrl,
-                                      child.imageKey
+                                      item.imageUrl,
+                                      item.imageKey
                                     ) ?? "",
                                 }}
                                 style={styles.categoryImageAsset}
@@ -438,16 +462,18 @@ export default function Home() {
                               <Text style={styles.categoryEmoji}>🥬</Text>
                             )}
                           </View>
-                          <Text style={styles.categoryName}>{child.name}</Text>
-                          {child.highlightText ? (
-                            <Text style={styles.categoryHint}>
-                              {child.highlightText}
+                          <Text style={styles.categoryName} numberOfLines={2}>
+                            {item.name}
+                          </Text>
+                          {item.highlightText ? (
+                            <Text style={styles.categoryHint} numberOfLines={1}>
+                              {item.highlightText}
                             </Text>
                           ) : null}
                         </Pressable>
                       </Link>
-                    ))}
-                  </View>
+                    )}
+                  />
                 )}
               </View>
             );
@@ -572,14 +598,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-between",
+    gap: 12,
   },
   placeholderCard: {
-    width: "47%",
-    height: 96,
-    borderRadius: 16,
+    width: "22%",
+    aspectRatio: 1,
+    borderRadius: 14,
     backgroundColor: "#e2e8f0",
-    marginBottom: 16,
   },
   noticeCard: {
     marginHorizontal: 20,
@@ -625,31 +650,27 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.6,
   },
-  categoryGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+  categoryRow: {
     justifyContent: "space-between",
-    rowGap: 16,
+    marginBottom: 12,
   },
   categoryCard: {
-    width: "47%",
-    minHeight: 128,
-    borderRadius: 18,
-    padding: 12,
+    borderRadius: 16,
+    padding: 8,
     backgroundColor: "#f8fbff",
     borderWidth: 1,
     borderColor: "#e5e7eb",
-    justifyContent: "center",
+    justifyContent: "flex-start",
     alignItems: "center",
   },
   categoryImage: {
-    width: 64,
-    height: 64,
+    width: 40,
+    height: 40,
     borderRadius: 18,
     backgroundColor: "#fff",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 10,
+    marginBottom: 8,
     overflow: "hidden",
   },
   categoryImageAsset: {
@@ -660,14 +681,14 @@ const styles = StyleSheet.create({
     fontSize: 28,
   },
   categoryName: {
-    fontSize: 13,
-    fontWeight: "700",
+    fontSize: 11,
+    fontWeight: "600",
     color: "#111827",
     textAlign: "center",
   },
   categoryHint: {
-    marginTop: 4,
-    fontSize: 11,
+    marginTop: 2,
+    fontSize: 9,
     color: "#64748b",
     textTransform: "uppercase",
     textAlign: "center",
