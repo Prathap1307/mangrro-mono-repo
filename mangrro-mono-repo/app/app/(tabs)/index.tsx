@@ -9,7 +9,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { Image } from "expo-image";
-import { Link } from "expo-router";
+import { useRouter } from "expo-router";
 
 import { fetchHomepageData } from "../../lib/aws/homepage";
 import { resolveImageUri } from "../../lib/images";
@@ -136,6 +136,7 @@ const normalizeCategorySchedule = (raw: any): CategorySchedule | null => {
 };
 
 export default function Home() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { width } = useWindowDimensions();
@@ -433,45 +434,44 @@ export default function Home() {
                     scrollEnabled={false}
                     columnWrapperStyle={styles.categoryRow}
                     renderItem={({ item }) => (
-                      <Link href={`/category/${item.id}`} asChild>
-                        <Pressable
-                          style={[
-                            styles.categoryCard,
-                            {
-                              width: categoryCardSize,
-                              height: categoryCardSize,
-                            },
-                          ]}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Open ${item.name} category`}
-                        >
-                          <View style={styles.categoryImage}>
-                            {resolveImageUri(item.imageUrl, item.imageKey) ? (
-                              <Image
-                                source={{
-                                  uri:
-                                    resolveImageUri(
-                                      item.imageUrl,
-                                      item.imageKey
-                                    ) ?? "",
-                                }}
-                                style={styles.categoryImageAsset}
-                                contentFit="cover"
-                              />
-                            ) : (
-                              <Text style={styles.categoryEmoji}>🥬</Text>
-                            )}
-                          </View>
-                          <Text style={styles.categoryName} numberOfLines={2}>
-                            {item.name}
+                      <Pressable
+                        style={[
+                          styles.categoryCard,
+                          {
+                            width: categoryCardSize,
+                            height: categoryCardSize,
+                          },
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Open ${item.name} category`}
+                        onPress={() => router.push(`/category/${item.id}`)}
+                      >
+                        <View style={styles.categoryImage}>
+                          {resolveImageUri(item.imageUrl, item.imageKey) ? (
+                            <Image
+                              source={{
+                                uri:
+                                  resolveImageUri(
+                                    item.imageUrl,
+                                    item.imageKey
+                                  ) ?? "",
+                              }}
+                              style={styles.categoryImageAsset}
+                              contentFit="cover"
+                            />
+                          ) : (
+                            <Text style={styles.categoryEmoji}>🥬</Text>
+                          )}
+                        </View>
+                        <Text style={styles.categoryName} numberOfLines={2}>
+                          {item.name}
+                        </Text>
+                        {item.highlightText ? (
+                          <Text style={styles.categoryHint} numberOfLines={1}>
+                            {item.highlightText}
                           </Text>
-                          {item.highlightText ? (
-                            <Text style={styles.categoryHint} numberOfLines={1}>
-                              {item.highlightText}
-                            </Text>
-                          ) : null}
-                        </Pressable>
-                      </Link>
+                        ) : null}
+                      </Pressable>
                     )}
                   />
                 )}
