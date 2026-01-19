@@ -176,27 +176,6 @@ export const isItemListVisible = ({
   return isItemScheduleOpen(schedules?.item, dayName, minutes);
 };
 
-export const isSubcategoryVisible = (
-  sub: { active: boolean } | undefined,
-  sched: SubcategorySchedule | undefined,
-  day: DayName,
-  now: number,
-  parentCategory: { active: boolean; reactivateOn?: string | null } | undefined,
-  nowDate: Date = new Date()
-): boolean => {
-  if (!sub || !sub.active) return false;
-  if (
-    !parentCategory ||
-    !isEntityActive(
-      parentCategory.active,
-      parentCategory.reactivateOn ?? undefined,
-      nowDate
-    )
-  ) {
-    return false;
-  }
-  return isScheduleOpen(sched, day, now);
-};
 
 export const isItemScheduleOpen = (
   sched: ItemSchedule | undefined,

@@ -1,5 +1,6 @@
 import {
   FlatList,
+  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -8,7 +9,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { Image } from "react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
@@ -415,7 +415,7 @@ function AddressPicker({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Array<{ id: string; label: string; session?: string }>>(
+  const [results, setResults] = useState<{ id: string; label: string; session?: string }[]>(
     []
   );
   const [loading, setLoading] = useState(false);
@@ -526,7 +526,7 @@ function AddressPicker({
         }
 
         const data = (await res.json()) as {
-          suggestions?: Array<{ latitude: number; longitude: number }>;
+          suggestions?: { latitude: number; longitude: number }[];
         };
         const first = data.suggestions?.[0];
 
@@ -817,7 +817,7 @@ function BookDeliveryModal({ open, onClose }: { open: boolean; onClose: () => vo
       }
 
       setPrice(data.finalPrice);
-    } catch (err) {
+    } catch {
       setPriceError("Failed to calculate price. Try again.");
     } finally {
       setLoadingPrice(false);
