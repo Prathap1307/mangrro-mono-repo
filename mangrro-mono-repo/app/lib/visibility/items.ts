@@ -4,10 +4,6 @@ import type {
   DayName,
   MainCategorySchedule,
 } from "../../types/homepage";
-import type {
-  ItemSchedule,
-  SubcategorySchedule,
-} from "../../types/catalog";
 import type { ItemSchedule, SubcategorySchedule } from "../../types/catalog";
 
 export interface ItemVisibilityContext {
