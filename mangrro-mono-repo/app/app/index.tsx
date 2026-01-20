@@ -36,6 +36,14 @@ import {
   isItemListVisible,
   isScheduleOpen,
 } from "../lib/visibility/items";
+import {
+  geocodePostcode,
+  retrieveAddress,
+  retrieveIdealPostcode,
+  reverseGeocode,
+  searchAddress,
+  searchIdealPostcodes,
+} from "../lib/location/addressService";
 
 interface SchedulerSelection {
   ids: string[];
@@ -467,21 +475,9 @@ function AddressPicker({
       setSearchAttempted(false);
 
       try {
-        const res = await fetch(
-          `/api/address/mapbox-search?q=${encodeURIComponent(trimmed)}`
-        );
-
-        if (!res.ok) {
-          if (requestIdRef.current === currentRequestId) {
-            setResults([]);
-            setSearchAttempted(true);
-          }
-          return;
-        }
-
-        const data = (await res.json()) as { suggestions?: typeof results };
         if (requestIdRef.current === currentRequestId) {
-          setResults(data.suggestions ?? []);
+          const suggestions = await searchAddress(trimmed);
+          setResults(suggestions);
           setSearchAttempted(true);
         }
       } catch {
@@ -516,20 +512,8 @@ function AddressPicker({
     const timer = setTimeout(async () => {
       setPostcodeStatus("validating");
       try {
-        const res = await fetch(
-          `/api/address/mapbox-geocode?q=${encodeURIComponent(trimmed)}`
-        );
-
-        if (!res.ok) {
-          setPostcodeStatus("invalid");
-          setManualCoords(null);
-          return;
-        }
-
-        const data = (await res.json()) as {
-          suggestions?: { latitude: number; longitude: number }[];
-        };
-        const first = data.suggestions?.[0];
+        const suggestions = await geocodePostcode(trimmed);
+        const first = suggestions?.[0];
 
         if (!first) {
           setPostcodeStatus("invalid");
@@ -557,24 +541,12 @@ function AddressPicker({
 
   async function selectSuggestion(item: { id: string; label: string; session?: string }) {
     try {
-      const res = await fetch(
-        `/api/address/mapbox-retrieve?id=${encodeURIComponent(
-          item.id
-        )}&session=${encodeURIComponent(item.session ?? "")}`
-      );
+      const data = await retrieveAddress(item.id, item.session);
 
-      if (!res.ok) {
+      if (!data) {
         setErrorMessage("We couldn't load that location. Please try again.");
         return;
       }
-
-      const data = (await res.json()) as {
-        name?: string;
-        address?: string;
-        postcode?: string;
-        latitude?: number;
-        longitude?: number;
-      };
 
       if (typeof data.latitude !== "number" || typeof data.longitude !== "number") {
         setErrorMessage("We couldn't resolve that location. Try another option.");
@@ -1477,15 +1449,10 @@ export default function HomePage() {
 
     const timeout = setTimeout(async () => {
       try {
-        const res = await fetch(
-          `/api/address/search?q=${encodeURIComponent(addrInput)}`,
-          { signal: controller.signal }
-        );
-
-        if (!res.ok) return;
-
-        const data = await res.json();
-        if (!cancelled) setAddrSuggestions(data.suggestions || []);
+        const suggestions = await searchIdealPostcodes(addrInput, {
+          signal: controller.signal,
+        });
+        if (!cancelled) setAddrSuggestions(suggestions || []);
       } catch (err: any) {
         if (err.name !== "AbortError") {
           console.error("Address autocomplete error:", err);
@@ -1547,20 +1514,11 @@ export default function HomePage() {
     setAddrError("");
 
     try {
-      const res = await fetch(`/api/address/details?id=${s.id}`);
-      if (!res.ok) {
+      const addr = await retrieveIdealPostcode(s.id);
+      if (!addr) {
         setAddrError("Could not retrieve address details.");
         return;
       }
-
-      const data = await res.json();
-
-      if (!data.address) {
-        setAddrError("Could not retrieve address details.");
-        return;
-      }
-
-      const addr = data.address;
 
       if (typeof addr.latitude !== "number" || typeof addr.longitude !== "number") {
         setAddrError("This address does not have coordinates.");
@@ -1589,22 +1547,11 @@ export default function HomePage() {
     setAddrError("");
 
     const handleCoords = async (latitude: number, longitude: number) => {
-      const res = await fetch(
-        `/api/address/reverse-geocode?lat=${latitude}&lng=${longitude}`
-      );
-      if (!res.ok) {
+      const addr = await reverseGeocode(latitude, longitude);
+      if (!addr) {
         setAddrError("Unable to detect address.");
         return;
       }
-
-      const data = await res.json();
-
-      if (!data.address) {
-        setAddrError("Unable to detect address.");
-        return;
-      }
-
-      const addr = data.address;
 
       if (typeof addr.latitude !== "number" || typeof addr.longitude !== "number") {
         setAddrError("Detected address has no coordinates.");
