@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
+// eslint-disable-next-line import/no-unresolved
 import { useAuth } from "@clerk/clerk-expo";
 
 import type {
