@@ -12,6 +12,7 @@ export interface AdminRestaurant {
   name: string;
   keywords: string[];
   cuisine: string[];
+  categories?: RestaurantCategory[];
   address: string;
   lat: string;
   lng: string;
@@ -23,6 +24,24 @@ export interface AdminRestaurant {
   nextActivationTime: string;
   username: string;
   password: string;
+}
+
+export interface RestaurantCategoryScheduleSlot {
+  start: string;
+  end: string;
+}
+
+export interface RestaurantCategoryScheduleDay {
+  day: string;
+  slots: RestaurantCategoryScheduleSlot[];
+}
+
+export interface RestaurantCategory {
+  id: string;
+  name: string;
+  active: boolean;
+  nextActivationTime: string;
+  schedule: RestaurantCategoryScheduleDay[];
 }
 
 function getClient() {
@@ -56,6 +75,9 @@ export async function listAdminRestaurants(): Promise<AdminRestaurant[]> {
     cuisine: Array.isArray(item.cuisine)
       ? (item.cuisine as string[]).map((value) => value.trim()).filter(Boolean)
       : [],
+    categories: Array.isArray(item.categories)
+      ? (item.categories as RestaurantCategory[])
+      : [],
     address: (item.address as string) || "",
     lat: (item.lat as string) || "",
     lng: (item.lng as string) || "",
@@ -77,6 +99,38 @@ export async function listAdminRestaurants(): Promise<AdminRestaurant[]> {
   );
 
   return withImages;
+}
+
+export async function getAdminRestaurantByName(name: string) {
+  const restaurants = await listAdminRestaurants();
+  return restaurants.find(
+    (restaurant) => restaurant.name.toLowerCase() === name.toLowerCase(),
+  );
+}
+
+export async function saveAdminRestaurantCategories(
+  restaurantName: string,
+  categories: RestaurantCategory[],
+) {
+  if (!RESTAURANTS_TABLE) return [];
+  const existing = await getAdminRestaurantByName(restaurantName);
+  if (!existing) return [];
+  const client = getClient();
+  const updated: AdminRestaurant = {
+    ...existing,
+    categories,
+  };
+
+  await client.send(
+    new PutCommand({
+      TableName: RESTAURANTS_TABLE,
+      Item: {
+        ...updated,
+      },
+    }),
+  );
+
+  return categories;
 }
 
 export async function saveAdminRestaurant(restaurant: AdminRestaurant) {
