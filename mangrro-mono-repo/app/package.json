@@ -13,6 +13,7 @@
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.967.0",
     "@aws-sdk/lib-dynamodb": "^3.967.0",
+    "@clerk/clerk-expo": "^2.19.18",
     "@expo/vector-icons": "^15.0.3",
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
