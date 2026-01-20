@@ -11,7 +11,6 @@ import {
 } from "react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
-// eslint-disable-next-line import/no-unresolved
 import { useAuth } from "@clerk/clerk-expo";
 
 import type {
@@ -800,6 +799,11 @@ function BookDeliveryModal({ open, onClose }: { open: boolean; onClose: () => vo
         }),
       });
 
+      if (!res.ok) {
+        setAddrError("Could not retrieve address details.");
+        return;
+      }
+
       const data = await res.json();
 
       if (!res.ok) {
@@ -1536,6 +1540,11 @@ export default function HomePage() {
 
     try {
       const res = await fetch(`/api/address/details?id=${s.id}`);
+      if (!res.ok) {
+        setAddrError("Could not retrieve address details.");
+        return;
+      }
+
       const data = await res.json();
 
       if (!data.address) {
@@ -1583,6 +1592,11 @@ export default function HomePage() {
           const res = await fetch(
             `/api/address/reverse-geocode?lat=${latitude}&lng=${longitude}`
           );
+          if (!res.ok) {
+            setAddrError("Unable to detect address.");
+            return;
+          }
+
           const data = await res.json();
 
           if (!data.address) {

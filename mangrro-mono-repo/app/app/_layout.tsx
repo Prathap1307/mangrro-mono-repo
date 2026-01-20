@@ -1,6 +1,5 @@
 import Constants from "expo-constants";
 import { Stack } from "expo-router";
-// eslint-disable-next-line import/no-unresolved
 import { ClerkProvider } from "@clerk/clerk-expo";
 
 export default function RootLayout() {
