@@ -230,47 +230,62 @@ export default function AdminRestaurantsClient({ initialRestaurants }: Props) {
         />
 
         <AdminCard>
-          <AdminTable
-            columns={columns}
-            data={restaurants}
-            renderCell={(restaurant, key) => {
-              const record = restaurant as AdminRestaurant;
-              if (key === "active") {
-                return (
-                  <AdminBadge
-                    label={record.active ? "Active" : "Inactive"}
-                    tone={record.active ? "success" : "warning"}
-                  />
-                );
-              }
-              if (key === "cuisine") {
-                return (
-                  <span className="text-xs text-slate-600">
-                    {record.cuisine.join(", ")}
-                  </span>
-                );
-              }
-              if (key === "actions") {
-                return (
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleEdit(record)}
-                      className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:border-blue-200 hover:text-blue-600"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(record.id)}
-                      className="rounded-full border border-rose-200 px-3 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                );
-              }
-              return record[key as keyof AdminRestaurant] as React.ReactNode;
-            }}
-          />
+          {restaurants.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500">
+              <p>No restaurants yet. Add your first restaurant to get started.</p>
+              <button
+                onClick={() => {
+                  resetForm();
+                  setModalOpen(true);
+                }}
+                className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5"
+              >
+                <FiPlus /> Add Restaurant
+              </button>
+            </div>
+          ) : (
+            <AdminTable
+              columns={columns}
+              data={restaurants}
+              renderCell={(restaurant, key) => {
+                const record = restaurant as AdminRestaurant;
+                if (key === "active") {
+                  return (
+                    <AdminBadge
+                      label={record.active ? "Active" : "Inactive"}
+                      tone={record.active ? "success" : "warning"}
+                    />
+                  );
+                }
+                if (key === "cuisine") {
+                  return (
+                    <span className="text-xs text-slate-600">
+                      {record.cuisine.join(", ")}
+                    </span>
+                  );
+                }
+                if (key === "actions") {
+                  return (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleEdit(record)}
+                        className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:border-blue-200 hover:text-blue-600"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(record.id)}
+                        className="rounded-full border border-rose-200 px-3 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  );
+                }
+                return record[key as keyof AdminRestaurant] as React.ReactNode;
+              }}
+            />
+          )}
         </AdminCard>
       </div>
 
