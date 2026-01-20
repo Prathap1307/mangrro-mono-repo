@@ -2,18 +2,17 @@
   "use client";
 
   import { useEffect, useMemo, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
 
 import Navbar from "@/components/Navbar";
-import Hero from "@/components/Hero";
 import SectionTitle from "@/components/SectionTitle";
 import CategoryIconTile from "@/components/CategoryIconTile";
+import OrderFoodHome from "@/components/OrderFoodHome";
 
 import { useDelivery } from "@/components/context/DeliveryContext";
 
 import type { Product } from "@/data/products";
 import type { Item } from "@/types";
-import { FiMapPin, FiTarget } from "react-icons/fi";
+import { FiCoffee, FiMapPin, FiShoppingBag, FiTarget } from "react-icons/fi";
 import BookDeliveryModal from "@/components/BookDeliveryModal";
 import type {
   CategorySchedule,
@@ -318,7 +317,7 @@ interface Subcategory {
   -------------------------------------------------------- */
   export default function HomePage() {
     const { address, setAddress } = useDelivery();
-    const { isSignedIn } = useAuth();
+    const [isSignedIn, setIsSignedIn] = useState(false);
 
     const [loading, setLoading] = useState(true);
 
@@ -333,6 +332,7 @@ interface Subcategory {
 
     const [search, setSearch] = useState("");
     const [searchOpen, setSearchOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState<"groceries" | "food">("groceries");
 
 
     /* --- LOCATION SHEET STATE --- */
@@ -341,6 +341,13 @@ interface Subcategory {
     const [addrLoading, setAddrLoading] = useState(false);
     const [addrError, setAddrError] = useState("");
     const [locationSheetOpen, setLocationSheetOpen] = useState(false);
+
+    useEffect(() => {
+      if (typeof window === "undefined") return;
+      const clerkUser = (window as typeof window & { Clerk?: { user?: unknown } })
+        .Clerk?.user;
+      setIsSignedIn(Boolean(clerkUser));
+    }, []);
 
     /* --------------------------------------------------------
       Fetch all backend data
@@ -891,7 +898,7 @@ interface Subcategory {
     const [bookOpen, setBookOpen] = useState(false);
 
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 pb-28 md:pb-0">
         {/* NAVBAR (no location here) */}
         <Navbar onSearchChange={setSearch} />
 
@@ -981,168 +988,223 @@ interface Subcategory {
           </div>
         )}
 
-        {/* HERO + LOCATION + SEARCH */}
-        <div className="mx-auto max-w-7xl px-4 lg:px-8">
-          {/*<Hero  setBookOpen={setBookOpen} /> */}
-          <BookDeliveryModal
-              open={bookOpen}
-              onClose={() => setBookOpen(false)}
-            />
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4 max-w-3xl mx-auto">
-            {/* Location pill 30–35% */}
-            <button
-              onClick={() => setLocationSheetOpen(true)}
-              className="flex flex-1 items-center gap-2 rounded-2xl border border-purple-100 bg-white px-4 py-3 shadow-sm transition hover:shadow-md sm:flex-[0.35]"
-            >
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-50">
-                <FiMapPin className="text-purple-600" />
-              </div>
-              <div className="flex flex-col items-start">
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-                  Deliver to
-                </span>
-                <span className="text-sm font-semibold text-gray-900 truncate max-w-[10rem] sm:max-w-[8rem]">
-                  {addressLabel}
-                </span>
-                <span className="text-[11px] text-gray-500 truncate max-w-[10rem] sm:max-w-[8rem]">
-                  {addressSubLabel}
-                </span>
-              </div>
-            </button>
-
-            {/* Product search 65–70% */}
-            <div className="relative flex-1 sm:flex-[0.65]">
-              <input
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setSearchOpen(true);
-                }}
-                placeholder="Search dishes, essentials..."
-                className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm shadow-inner focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-100"
+        {activeTab === "groceries" ? (
+          <>
+            {/* HERO + LOCATION + SEARCH */}
+            <div className="mx-auto max-w-7xl px-4 lg:px-8">
+              {/*<Hero  setBookOpen={setBookOpen} /> */}
+              <BookDeliveryModal
+                open={bookOpen}
+                onClose={() => setBookOpen(false)}
               />
-
-              {search.length > 0 && (
+              <div className="mx-auto mt-6 flex max-w-3xl flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+                {/* Location pill 30–35% */}
                 <button
-                  onClick={() => {
-                    setSearch("");
-                    setSearchOpen(false);
-                  }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+                  onClick={() => setLocationSheetOpen(true)}
+                  className="flex flex-1 items-center gap-2 rounded-2xl border border-purple-100 bg-white px-4 py-3 shadow-sm transition hover:shadow-md sm:flex-[0.35]"
                 >
-                  ✕
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-50">
+                    <FiMapPin className="text-purple-600" />
+                  </div>
+                  <div className="flex flex-col items-start">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                      Deliver to
+                    </span>
+                    <span className="max-w-[10rem] truncate text-sm font-semibold text-gray-900 sm:max-w-[8rem]">
+                      {addressLabel}
+                    </span>
+                    <span className="max-w-[10rem] truncate text-[11px] text-gray-500 sm:max-w-[8rem]">
+                      {addressSubLabel}
+                    </span>
+                  </div>
                 </button>
-              )}
 
-              {searchOpen && productSuggestions.length > 0 && (
-                <div className="absolute z-30 mt-2 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
-                  {productSuggestions.map((s) => (
+                {/* Product search 65–70% */}
+                <div className="relative flex-1 sm:flex-[0.65]">
+                  <input
+                    value={search}
+                    onChange={(e) => {
+                      setSearch(e.target.value);
+                      setSearchOpen(true);
+                    }}
+                    placeholder="Search dishes, essentials..."
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm shadow-inner focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-100"
+                  />
+
+                  {search.length > 0 && (
                     <button
-                      key={s.id}
                       onClick={() => {
-                        setSearch(s.name);
+                        setSearch("");
                         setSearchOpen(false);
                       }}
-                      className="block w-full px-4 py-3 text-left text-sm hover:bg-gray-50"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600"
                     >
-                      <span className="font-medium">{s.name}</span>
-                      {s.description && (
-                        <p className="text-[11px] text-gray-500 line-clamp-1">
-                          {s.description}
-                        </p>
-                      )}
+                      ✕
                     </button>
+                  )}
+
+                  {searchOpen && productSuggestions.length > 0 && (
+                    <div className="absolute z-30 mt-2 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+                      {productSuggestions.map((s) => (
+                        <button
+                          key={s.id}
+                          onClick={() => {
+                            setSearch(s.name);
+                            setSearchOpen(false);
+                          }}
+                          className="block w-full px-4 py-3 text-left text-sm hover:bg-gray-50"
+                        >
+                          <span className="font-medium">{s.name}</span>
+                          {s.description && (
+                            <p className="line-clamp-1 text-[11px] text-gray-500">
+                              {s.description}
+                            </p>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* CATEGORY GRID */}
+            <section className="mx-auto mt-10 max-w-7xl space-y-6 px-4 lg:px-8">
+              <SectionTitle
+                eyebrow="Tonight's Picks"
+                title="Discover the New Essentials"
+                action={
+                  <span className="rounded-full bg-purple-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-purple-700">
+                    Curated by category
+                  </span>
+                }
+              />
+
+              {loading ? (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {Array.from({ length: 6 }).map((_, index) => (
+                    <div
+                      key={index}
+                      className="h-48 rounded-3xl bg-white shadow-sm"
+                    >
+                      <div className="h-28 w-full rounded-t-3xl bg-gray-100" />
+                      <div className="space-y-2 px-4 py-3">
+                        <div className="h-4 w-28 rounded-full bg-gray-100" />
+                        <div className="h-3 w-20 rounded-full bg-gray-100" />
+                      </div>
+                    </div>
                   ))}
                 </div>
+              ) : derivedMainCategories.length === 0 ? (
+                <div className="rounded-2xl border border-gray-200 bg-white px-6 py-10 text-center text-sm text-gray-500 shadow-sm">
+                  No categories available right now. Please check back soon.
+                </div>
+              ) : search.trim().length > 0 &&
+                visibleMainCategories.length === 0 ? (
+                <div className="rounded-2xl border border-gray-200 bg-white px-6 py-10 text-center text-sm text-gray-500 shadow-sm">
+                  No categories match your search right now.
+                </div>
+              ) : (
+                <div className="space-y-8">
+                  {visibleMainCategories.map((category) => {
+                    const childCategories =
+                      childCategoriesByParent.get(category.id) ?? [];
+                    const visibleChildCategories = filteredCategoryNames
+                      ? childCategories.filter(
+                          (child) =>
+                            filteredCategoryNames.has(child.name) ||
+                            (child.subcategoryName &&
+                              filteredCategoryNames.has(child.subcategoryName))
+                        )
+                      : childCategories;
+
+                    return (
+                      <div key={category.id} className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            {category.name}
+                          </h3>
+                          {category.highlightText && (
+                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                              {category.highlightText}
+                            </span>
+                          )}
+                        </div>
+                        {visibleChildCategories.length === 0 ? (
+                          <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-4 py-6 text-sm text-gray-500">
+                            No subcategories available right now.
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-4 gap-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12">
+                            {visibleChildCategories.map((child) => (
+                              <CategoryIconTile
+                                key={child.id}
+                                name={child.name}
+                                imageUrl={child.imageUrl}
+                                imageKey={child.imageKey}
+                                href={`/categories/${child.id}`}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
-            </div>
+            </section>
+          </>
+        ) : (
+          <OrderFoodHome
+            addressLabel={addressLabel}
+            addressSubLabel={addressSubLabel}
+            onLocationClick={() => setLocationSheetOpen(true)}
+          />
+        )}
+        <div className="fixed bottom-4 left-0 right-0 z-50 flex justify-center md:hidden">
+          <div className="flex w-[92%] max-w-md items-center justify-around rounded-3xl bg-white/95 px-6 py-3 shadow-[0_12px_30px_rgba(0,0,0,0.15)] backdrop-blur">
+            <button
+              type="button"
+              onClick={() => setActiveTab("groceries")}
+              className={`flex flex-col items-center gap-1 text-xs font-semibold ${
+                activeTab === "groceries"
+                  ? "text-purple-600"
+                  : "text-gray-500"
+              }`}
+            >
+              <span
+                className={`flex h-10 w-10 items-center justify-center rounded-full ${
+                  activeTab === "groceries"
+                    ? "bg-purple-50 text-purple-600"
+                    : "bg-gray-100 text-gray-400"
+                }`}
+              >
+                <FiShoppingBag className="text-lg" />
+              </span>
+              Order groceries
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("food")}
+              className={`flex flex-col items-center gap-1 text-xs font-semibold ${
+                activeTab === "food"
+                  ? "text-purple-600"
+                  : "text-gray-500"
+              }`}
+            >
+              <span
+                className={`flex h-10 w-10 items-center justify-center rounded-full ${
+                  activeTab === "food"
+                    ? "bg-purple-50 text-purple-600"
+                    : "bg-gray-100 text-gray-400"
+                }`}
+              >
+                <FiCoffee className="text-lg" />
+              </span>
+              Order food
+            </button>
           </div>
         </div>
-
-        {/* CATEGORY GRID */}
-        <section className="mx-auto mt-10 max-w-7xl space-y-6 px-4 lg:px-8">
-          <SectionTitle
-            eyebrow="Tonight's Picks"
-            title="Discover the New Essentials"
-            action={
-              <span className="rounded-full bg-purple-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-purple-700">
-                Curated by category
-              </span>
-            }
-          />
-
-          {loading ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {Array.from({ length: 6 }).map((_, index) => (
-                <div
-                  key={index}
-                  className="h-48 rounded-3xl bg-white shadow-sm"
-                >
-                  <div className="h-28 w-full rounded-t-3xl bg-gray-100" />
-                  <div className="space-y-2 px-4 py-3">
-                    <div className="h-4 w-28 rounded-full bg-gray-100" />
-                    <div className="h-3 w-20 rounded-full bg-gray-100" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : derivedMainCategories.length === 0 ? (
-            <div className="rounded-2xl border border-gray-200 bg-white px-6 py-10 text-center text-sm text-gray-500 shadow-sm">
-              No categories available right now. Please check back soon.
-            </div>
-          ) : search.trim().length > 0 && visibleMainCategories.length === 0 ? (
-            <div className="rounded-2xl border border-gray-200 bg-white px-6 py-10 text-center text-sm text-gray-500 shadow-sm">
-              No categories match your search right now.
-            </div>
-          ) : (
-            <div className="space-y-8">
-              {visibleMainCategories.map((category) => {
-                const childCategories =
-                  childCategoriesByParent.get(category.id) ?? [];
-                const visibleChildCategories = filteredCategoryNames
-                  ? childCategories.filter(
-                      (child) =>
-                        filteredCategoryNames.has(child.name) ||
-                        (child.subcategoryName &&
-                          filteredCategoryNames.has(child.subcategoryName))
-                    )
-                  : childCategories;
-
-                return (
-                  <div key={category.id} className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        {category.name}
-                      </h3>
-                      {category.highlightText && (
-                        <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                          {category.highlightText}
-                        </span>
-                      )}
-                    </div>
-                    {visibleChildCategories.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-4 py-6 text-sm text-gray-500">
-                        No subcategories available right now.
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-4 gap-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12">
-                        {visibleChildCategories.map((child) => (
-                          <CategoryIconTile
-                            key={child.id}
-                            name={child.name}
-                            imageUrl={child.imageUrl}
-                            imageKey={child.imageKey}
-                            href={`/categories/${child.id}`}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
       </div>
     );
   }
