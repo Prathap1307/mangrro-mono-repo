@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import {
   FiChevronDown,
@@ -17,30 +17,23 @@ const categoryChips = [
   { label: "Samosa", emoji: "🥟" },
 ];
 
-const restaurantCards = [
-  {
-    name: "Popeyes",
-    rating: "4.4 (235)",
-    time: "25-30 mins",
-    cuisine: "Burgers, Fast Food, Rolls",
-    location: "Uptown • 3.0 km",
-    image:
-      "https://images.unsplash.com/photo-1606756790138-261d2b21cd75?auto=format&fit=crop&w=900&q=80",
-    badge: "Food in 15 mins",
-    priceNote: "ITEMS AT ₹59",
-  },
-  {
-    name: "Domino's Pizza",
-    rating: "4.2 (18K+)",
-    time: "20-25 mins",
-    cuisine: "Pizzas, Italian, Pastas, Desserts",
-    location: "Saidapet • 1.3 km",
-    image:
-      "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=900&q=80",
-    badge: "Food in 10-15 min",
-    priceNote: "FLAT DEAL 50% OFF",
-  },
-];
+interface RestaurantRecord {
+  id: string;
+  name: string;
+  keywords: string[];
+  cuisine: string[];
+  address: string;
+  lat: string;
+  lng: string;
+  description: string;
+  imageKey?: string;
+  imageUrl?: string;
+  averagePrepTime: string;
+  active: boolean;
+  nextActivationTime: string;
+  username: string;
+  password: string;
+}
 
 interface OrderFoodHomeProps {
   addressLabel: string;
@@ -55,6 +48,47 @@ export default function OrderFoodHome({
 }: OrderFoodHomeProps) {
   const [query, setQuery] = useState("");
   const [vegOnly, setVegOnly] = useState(false);
+  const [restaurants, setRestaurants] = useState<RestaurantRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadRestaurants = async () => {
+      try {
+        const res = await fetch("/api/admin/restaurants");
+        const data = await res.json();
+        if (!mounted) return;
+        const records = (data?.data ?? data ?? []) as RestaurantRecord[];
+        setRestaurants(records.filter((record) => record.active));
+      } catch (error) {
+        if (mounted) setRestaurants([]);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    void loadRestaurants();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const filteredRestaurants = useMemo(() => {
+    const queryValue = query.trim().toLowerCase();
+    if (!queryValue) return restaurants;
+    return restaurants.filter((restaurant) => {
+      const haystack = [
+        restaurant.name,
+        restaurant.description,
+        restaurant.address,
+        ...restaurant.cuisine,
+        ...restaurant.keywords,
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(queryValue);
+    });
+  }, [query, restaurants]);
 
   return (
     <section className="mx-auto max-w-7xl px-4 pb-10 pt-6 lg:px-8">
@@ -133,40 +167,62 @@ export default function OrderFoodHome({
       </div>
 
       <div className="mx-auto mt-6 grid max-w-3xl gap-6">
-        {restaurantCards.map((card) => (
-          <div
-            key={card.name}
-            className="overflow-hidden rounded-3xl bg-white shadow-lg"
-          >
-            <div className="relative h-48 w-full">
-              <Image
-                src={card.image}
-                alt={card.name}
-                fill
-                className="object-cover"
-                sizes="(max-width: 768px) 100vw, 480px"
-              />
-              <div className="absolute left-4 top-4 rounded-full bg-black/80 px-3 py-1 text-xs font-semibold text-white">
-                ✨ You can now discover similar restaurants easily
-              </div>
-              <div className="absolute bottom-4 left-4 rounded-xl bg-black/70 px-3 py-2 text-xs font-semibold text-white">
-                {card.priceNote}
-              </div>
-            </div>
-            <div className="space-y-2 px-4 py-4">
-              <div className="flex items-center justify-between text-xs font-semibold text-orange-500">
-                <span>Bolt⚡ {card.badge}</span>
-                <span className="text-gray-400">•••</span>
-              </div>
-              <h3 className="text-lg font-bold text-gray-900">{card.name}</h3>
-              <p className="text-sm font-semibold text-gray-700">
-                ⭐ {card.rating} • {card.time}
-              </p>
-              <p className="text-xs text-gray-500">{card.cuisine}</p>
-              <p className="text-xs text-gray-400">{card.location}</p>
-            </div>
+        {loading ? (
+          <div className="rounded-3xl border border-gray-200 bg-white px-6 py-10 text-center text-sm text-gray-500 shadow-sm">
+            Loading restaurants...
           </div>
-        ))}
+        ) : filteredRestaurants.length === 0 ? (
+          <div className="rounded-3xl border border-gray-200 bg-white px-6 py-10 text-center text-sm text-gray-500 shadow-sm">
+            No restaurants available right now.
+          </div>
+        ) : (
+          filteredRestaurants.map((restaurant) => (
+            <div
+              key={restaurant.id}
+              className="overflow-hidden rounded-3xl bg-white shadow-lg"
+            >
+              <div className="relative h-48 w-full">
+                {restaurant.imageUrl ? (
+                  <Image
+                    src={restaurant.imageUrl}
+                    alt={restaurant.name}
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 768px) 100vw, 480px"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-orange-100 via-amber-100 to-yellow-100 text-lg font-semibold text-orange-600">
+                    {restaurant.name}
+                  </div>
+                )}
+                <div className="absolute left-4 top-4 rounded-full bg-black/80 px-3 py-1 text-xs font-semibold text-white">
+                  ✨ You can now discover similar restaurants easily
+                </div>
+                {restaurant.averagePrepTime && (
+                  <div className="absolute bottom-4 left-4 rounded-xl bg-black/70 px-3 py-2 text-xs font-semibold text-white">
+                    {restaurant.averagePrepTime}
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2 px-4 py-4">
+                <div className="flex items-center justify-between text-xs font-semibold text-orange-500">
+                  <span>
+                    Bolt⚡ {restaurant.averagePrepTime || "Food in minutes"}
+                  </span>
+                  <span className="text-gray-400">•••</span>
+                </div>
+                <h3 className="text-lg font-bold text-gray-900">
+                  {restaurant.name}
+                </h3>
+                <p className="text-sm font-semibold text-gray-700">
+                  {restaurant.cuisine.join(", ")}
+                </p>
+                <p className="text-xs text-gray-500">{restaurant.description}</p>
+                <p className="text-xs text-gray-400">{restaurant.address}</p>
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </section>
   );
