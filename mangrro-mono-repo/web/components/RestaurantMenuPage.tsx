@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   FiArrowLeft,
   FiChevronDown,
@@ -15,57 +15,21 @@ import {
 
 const filters = ["Ratings 4.0+", "Bestseller", "Veg", "Spicy"];
 
-const categoryList = [
-  { label: "Millet Murukku", count: 11 },
-  { label: "Millet Gluten Free Murukku Combos", count: 6 },
-  { label: "Millet Gluten Free Cookies", count: 8 },
-  { label: "Millet Gluten Free Premium Cookies", count: 9 },
-  { label: "Millet Gluten Free Cookie Combos", count: 5 },
-];
+interface RestaurantCategory {
+  id: string;
+  name: string;
+}
 
-const menuSections = [
-  {
-    title: "Top Picks",
-    items: [
-      {
-        name: "Chilli Paneer Dry",
-        price: "₹215",
-        rating: "3.9 (11)",
-        image:
-          "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=900&q=80",
-        tag: "Bestseller",
-      },
-      {
-        name: "High On Fiber Bowl",
-        price: "₹215",
-        rating: "4.4 (11)",
-        image:
-          "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=900&q=80",
-      },
-    ],
-  },
-  {
-    title: "Recommended (20)",
-    items: [
-      {
-        name: "Millet & Nuts Premium Cookies Combo",
-        price: "₹270",
-        rating: "5 (3)",
-        description: "Contains millet almond fingers (120 g) & more",
-        image:
-          "https://images.unsplash.com/photo-1542843137-8791a6904d2b?auto=format&fit=crop&w=900&q=80",
-      },
-      {
-        name: "Millet & Seeds Premium Cookies",
-        price: "₹260",
-        rating: "4.6 (8)",
-        description: "Premium cookies with seeds and millet blend.",
-        image:
-          "https://images.unsplash.com/photo-1607082349566-1870c643b535?auto=format&fit=crop&w=900&q=80",
-      },
-    ],
-  },
-];
+interface RestaurantItem {
+  id: string;
+  name: string;
+  keywords: string[];
+  categoryName?: string;
+  price: string;
+  strikePrice?: string;
+  description?: string;
+  imageUrl?: string;
+}
 
 interface RestaurantMenuPageProps {
   restaurantName: string;
@@ -76,19 +40,86 @@ export default function RestaurantMenuPage({
 }: RestaurantMenuPageProps) {
   const [search, setSearch] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [categories, setCategories] = useState<RestaurantCategory[]>([]);
+  const [items, setItems] = useState<RestaurantItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadData = async () => {
+      try {
+        const categoryRes = await fetch(
+          `/api/admin/restaurants/${encodeURIComponent(restaurantName)}/categories`,
+        );
+        const itemRes = await fetch(
+          `/api/admin/restaurants/${encodeURIComponent(restaurantName)}/items`,
+        );
+        const [categoryData, itemData] = await Promise.all([
+          categoryRes.json(),
+          itemRes.json(),
+        ]);
+        if (!mounted) return;
+        setCategories(Array.isArray(categoryData) ? categoryData : []);
+        setItems(Array.isArray(itemData) ? itemData : []);
+      } catch (error) {
+        if (mounted) {
+          setCategories([]);
+          setItems([]);
+        }
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    void loadData();
+    return () => {
+      mounted = false;
+    };
+  }, [restaurantName]);
 
   const filteredSections = useMemo(() => {
-    if (!search.trim()) return menuSections;
-    const query = search.toLowerCase();
-    return menuSections
-      .map((section) => ({
-        ...section,
-        items: section.items.filter((item) =>
-          item.name.toLowerCase().includes(query),
-        ),
-      }))
-      .filter((section) => section.items.length > 0);
-  }, [search]);
+    const query = search.trim().toLowerCase();
+    const filteredItems = !query
+      ? items
+      : items.filter((item) => {
+          const haystack = [
+            item.name,
+            item.description ?? "",
+            item.categoryName ?? "",
+            ...(item.keywords ?? []),
+          ]
+            .join(" ")
+            .toLowerCase();
+          return haystack.includes(query);
+        });
+
+    const sections = categories.length
+      ? categories.map((category) => ({
+          title: category.name,
+          items: filteredItems.filter(
+            (item) => (item.categoryName ?? "Uncategorized") === category.name,
+          ),
+        }))
+      : [
+          {
+            title: "Menu",
+            items: filteredItems,
+          },
+        ];
+
+    return sections.filter((section) => section.items.length > 0);
+  }, [categories, items, search]);
+
+  const categoryList = useMemo(
+    () =>
+      categories.map((category) => ({
+        label: category.name,
+        count: items.filter(
+          (item) => (item.categoryName ?? "Uncategorized") === category.name,
+        ).length,
+      })),
+    [categories, items],
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 pb-28">
@@ -157,55 +188,71 @@ export default function RestaurantMenuPage({
         </div>
 
         <div className="mt-6 space-y-6">
-          {filteredSections.map((section) => (
-            <div key={section.title}>
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-bold text-slate-900">
-                  {section.title}
-                </h2>
-                <FiChevronDown className="text-slate-400" />
-              </div>
-              <div className="mt-4 grid gap-4">
-                {section.items.map((item) => (
-                  <div
-                    key={item.name}
-                    className="flex items-center gap-4 rounded-3xl bg-white p-4 shadow-sm"
-                  >
-                    <div className="flex-1 space-y-2">
-                      <p className="text-sm font-semibold text-slate-900">
-                        {item.name}
-                      </p>
-                      <p className="text-sm font-semibold text-slate-700">
-                        {item.price}
-                      </p>
-                      {item.rating && (
-                        <p className="text-xs text-emerald-600">
-                          ⭐ {item.rating}
-                        </p>
-                      )}
-                      {item.description && (
-                        <p className="text-xs text-slate-500">
-                          {item.description}
-                        </p>
-                      )}
-                    </div>
-                    <div className="relative h-24 w-28 overflow-hidden rounded-2xl">
-                      <Image
-                        src={item.image}
-                        alt={item.name}
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 768px) 112px, 160px"
-                      />
-                      <button className="absolute bottom-2 right-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-600 shadow">
-                        ADD
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+          {loading ? (
+            <div className="rounded-3xl border border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-500 shadow-sm">
+              Loading menu...
             </div>
-          ))}
+          ) : filteredSections.length === 0 ? (
+            <div className="rounded-3xl border border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-500 shadow-sm">
+              No menu items available yet.
+            </div>
+          ) : (
+            filteredSections.map((section) => (
+              <div key={section.title}>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-bold text-slate-900">
+                    {section.title}
+                  </h2>
+                  <FiChevronDown className="text-slate-400" />
+                </div>
+                <div className="mt-4 grid gap-4">
+                  {section.items.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center gap-4 rounded-3xl bg-white p-4 shadow-sm"
+                    >
+                      <div className="flex-1 space-y-2">
+                        <p className="text-sm font-semibold text-slate-900">
+                          {item.name}
+                        </p>
+                        <p className="text-sm font-semibold text-slate-700">
+                          {item.price}
+                        </p>
+                        {item.strikePrice && (
+                          <p className="text-xs text-slate-400 line-through">
+                            {item.strikePrice}
+                          </p>
+                        )}
+                        {item.description && (
+                          <p className="text-xs text-slate-500">
+                            {item.description}
+                          </p>
+                        )}
+                      </div>
+                      <div className="relative h-24 w-28 overflow-hidden rounded-2xl">
+                        {item.imageUrl ? (
+                          <Image
+                            src={item.imageUrl}
+                            alt={item.name}
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 768px) 112px, 160px"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center bg-slate-100 text-xs text-slate-400">
+                            No image
+                          </div>
+                        )}
+                        <button className="absolute bottom-2 right-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-600 shadow">
+                          ADD
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
@@ -226,15 +273,17 @@ export default function RestaurantMenuPage({
               </button>
             </div>
             <div className="mt-4 space-y-4">
-              {categoryList.map((category) => (
-                <div
-                  key={category.label}
-                  className="flex items-center justify-between text-sm"
-                >
-                  <span>{category.label}</span>
-                  <span className="text-slate-400">{category.count}</span>
-                </div>
-              ))}
+              {(categoryList.length ? categoryList : [{ label: "Menu", count: items.length }]).map(
+                (category) => (
+                  <div
+                    key={category.label}
+                    className="flex items-center justify-between text-sm"
+                  >
+                    <span>{category.label}</span>
+                    <span className="text-slate-400">{category.count}</span>
+                  </div>
+                ),
+              )}
             </div>
           </div>
         </div>

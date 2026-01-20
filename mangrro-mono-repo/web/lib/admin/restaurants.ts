@@ -13,6 +13,7 @@ export interface AdminRestaurant {
   keywords: string[];
   cuisine: string[];
   categories?: RestaurantCategory[];
+  items?: RestaurantItem[];
   address: string;
   lat: string;
   lng: string;
@@ -42,6 +43,30 @@ export interface RestaurantCategory {
   active: boolean;
   nextActivationTime: string;
   schedule: RestaurantCategoryScheduleDay[];
+}
+
+export interface RestaurantItemTax {
+  enabled: boolean;
+  type: "percentage" | "fixed";
+  value: string;
+  label: string;
+}
+
+export interface RestaurantItem {
+  id: string;
+  name: string;
+  keywords: string[];
+  categoryName?: string;
+  price: string;
+  strikePrice?: string;
+  description?: string;
+  imageKey?: string;
+  imageUrl?: string;
+  tax: RestaurantItemTax;
+  packingCharge: {
+    enabled: boolean;
+    value: string;
+  };
 }
 
 function getClient() {
@@ -78,6 +103,7 @@ export async function listAdminRestaurants(): Promise<AdminRestaurant[]> {
     categories: Array.isArray(item.categories)
       ? (item.categories as RestaurantCategory[])
       : [],
+    items: Array.isArray(item.items) ? (item.items as RestaurantItem[]) : [],
     address: (item.address as string) || "",
     lat: (item.lat as string) || "",
     lng: (item.lng as string) || "",
@@ -94,7 +120,14 @@ export async function listAdminRestaurants(): Promise<AdminRestaurant[]> {
     restaurants.map(async (restaurant) => {
       if (!restaurant.imageKey) return restaurant;
       const imageUrl = await getItemImageUrl(restaurant.imageKey);
-      return { ...restaurant, imageUrl };
+      const itemsWithImages = await Promise.all(
+        (restaurant.items ?? []).map(async (menuItem) => {
+          if (!menuItem.imageKey) return menuItem;
+          const itemImageUrl = await getItemImageUrl(menuItem.imageKey);
+          return { ...menuItem, imageUrl: itemImageUrl };
+        }),
+      );
+      return { ...restaurant, imageUrl, items: itemsWithImages };
     }),
   );
 
@@ -131,6 +164,31 @@ export async function saveAdminRestaurantCategories(
   );
 
   return categories;
+}
+
+export async function saveAdminRestaurantItems(
+  restaurantName: string,
+  items: RestaurantItem[],
+) {
+  if (!RESTAURANTS_TABLE) return [];
+  const existing = await getAdminRestaurantByName(restaurantName);
+  if (!existing) return [];
+  const client = getClient();
+  const updated: AdminRestaurant = {
+    ...existing,
+    items,
+  };
+
+  await client.send(
+    new PutCommand({
+      TableName: RESTAURANTS_TABLE,
+      Item: {
+        ...updated,
+      },
+    }),
+  );
+
+  return items;
 }
 
 export async function saveAdminRestaurant(restaurant: AdminRestaurant) {
