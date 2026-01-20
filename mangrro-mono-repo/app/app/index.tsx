@@ -36,6 +36,15 @@ import {
   isItemListVisible,
   isScheduleOpen,
 } from "../lib/visibility/items";
+import { resolveImageUri } from "../lib/images";
+import {
+  geocodePostcode,
+  retrieveAddress,
+  retrieveIdealPostcode,
+  reverseGeocode,
+  searchAddress,
+  searchIdealPostcodes,
+} from "../lib/location/addressService";
 
 interface SchedulerSelection {
   ids: string[];
@@ -87,6 +96,30 @@ type ParcelSize = "small" | "medium" | "large";
 type PickupType = "now" | "schedule";
 
 type PostcodeStatus = "idle" | "validating" | "valid" | "invalid";
+
+const PROMO_BANNERS = [
+  {
+    id: "fresh-essentials",
+    title: "Fresh essentials in 30 mins",
+    subtitle: "Top groceries and pantry staples delivered fast.",
+    cta: "Shop essentials",
+    tone: "#7c3aed",
+  },
+  {
+    id: "weekend-host",
+    title: "Weekend hosting made easy",
+    subtitle: "Party snacks, drinks, and last-minute add-ons.",
+    cta: "Browse party picks",
+    tone: "#0ea5e9",
+  },
+  {
+    id: "meal-deal",
+    title: "Dinner sorted tonight",
+    subtitle: "Add mains + sides with curated bundles.",
+    cta: "View bundles",
+    tone: "#f97316",
+  },
+];
 
 function getTodayInfo(): { dayName: DayName; minutes: number } {
   const now = new Date();
@@ -220,9 +253,9 @@ const resolveSubcategorySchedule = (
 };
 
 const mapToProduct = (item: ItemMeta, cat?: Category): Product => {
-  const image = item.imageKey
-    ? `/api/image-proxy?key=${encodeURIComponent(item.imageKey)}`
-    : item.imageUrl || "/placeholder.webp";
+  const image =
+    resolveImageUri(item.imageUrl, item.imageKey) ||
+    "https://placehold.co/200x200/png";
 
   return {
     id: item.itemId,
@@ -298,21 +331,17 @@ function CategoryIconTile({
   imageKey?: string;
   onPress?: () => void;
 }) {
-  const imageSrc = imageKey
-    ? `/api/image-proxy?key=${encodeURIComponent(imageKey)}`
-    : imageUrl;
+  const imageSrc = resolveImageUri(imageUrl, imageKey);
   const initial = name.trim().charAt(0).toUpperCase();
 
   return (
     <Pressable style={styles.categoryTileWrapper} onPress={onPress}>
-      <View style={styles.categoryTileImageContainer}>
-        <View style={styles.categoryTileImageWrapper}>
-          {imageSrc ? (
-            <Image source={{ uri: imageSrc }} style={styles.categoryTileImage} />
-          ) : (
-            <Text style={styles.categoryTileInitial}>{initial}</Text>
-          )}
-        </View>
+      <View style={styles.categoryTileImageWrapper}>
+        {imageSrc ? (
+          <Image source={{ uri: imageSrc }} style={styles.categoryTileImage} />
+        ) : (
+          <Text style={styles.categoryTileInitial}>{initial}</Text>
+        )}
       </View>
       <Text style={styles.categoryTileLabel}>{name}</Text>
     </Pressable>
@@ -467,21 +496,9 @@ function AddressPicker({
       setSearchAttempted(false);
 
       try {
-        const res = await fetch(
-          `/api/address/mapbox-search?q=${encodeURIComponent(trimmed)}`
-        );
-
-        if (!res.ok) {
-          if (requestIdRef.current === currentRequestId) {
-            setResults([]);
-            setSearchAttempted(true);
-          }
-          return;
-        }
-
-        const data = (await res.json()) as { suggestions?: typeof results };
         if (requestIdRef.current === currentRequestId) {
-          setResults(data.suggestions ?? []);
+          const suggestions = await searchAddress(trimmed);
+          setResults(suggestions);
           setSearchAttempted(true);
         }
       } catch {
@@ -516,20 +533,8 @@ function AddressPicker({
     const timer = setTimeout(async () => {
       setPostcodeStatus("validating");
       try {
-        const res = await fetch(
-          `/api/address/mapbox-geocode?q=${encodeURIComponent(trimmed)}`
-        );
-
-        if (!res.ok) {
-          setPostcodeStatus("invalid");
-          setManualCoords(null);
-          return;
-        }
-
-        const data = (await res.json()) as {
-          suggestions?: { latitude: number; longitude: number }[];
-        };
-        const first = data.suggestions?.[0];
+        const suggestions = await geocodePostcode(trimmed);
+        const first = suggestions?.[0];
 
         if (!first) {
           setPostcodeStatus("invalid");
@@ -557,24 +562,12 @@ function AddressPicker({
 
   async function selectSuggestion(item: { id: string; label: string; session?: string }) {
     try {
-      const res = await fetch(
-        `/api/address/mapbox-retrieve?id=${encodeURIComponent(
-          item.id
-        )}&session=${encodeURIComponent(item.session ?? "")}`
-      );
+      const data = await retrieveAddress(item.id, item.session);
 
-      if (!res.ok) {
+      if (!data) {
         setErrorMessage("We couldn't load that location. Please try again.");
         return;
       }
-
-      const data = (await res.json()) as {
-        name?: string;
-        address?: string;
-        postcode?: string;
-        latitude?: number;
-        longitude?: number;
-      };
 
       if (typeof data.latitude !== "number" || typeof data.longitude !== "number") {
         setErrorMessage("We couldn't resolve that location. Try another option.");
@@ -1477,15 +1470,10 @@ export default function HomePage() {
 
     const timeout = setTimeout(async () => {
       try {
-        const res = await fetch(
-          `/api/address/search?q=${encodeURIComponent(addrInput)}`,
-          { signal: controller.signal }
-        );
-
-        if (!res.ok) return;
-
-        const data = await res.json();
-        if (!cancelled) setAddrSuggestions(data.suggestions || []);
+        const suggestions = await searchIdealPostcodes(addrInput, {
+          signal: controller.signal,
+        });
+        if (!cancelled) setAddrSuggestions(suggestions || []);
       } catch (err: any) {
         if (err.name !== "AbortError") {
           console.error("Address autocomplete error:", err);
@@ -1547,20 +1535,11 @@ export default function HomePage() {
     setAddrError("");
 
     try {
-      const res = await fetch(`/api/address/details?id=${s.id}`);
-      if (!res.ok) {
+      const addr = await retrieveIdealPostcode(s.id);
+      if (!addr) {
         setAddrError("Could not retrieve address details.");
         return;
       }
-
-      const data = await res.json();
-
-      if (!data.address) {
-        setAddrError("Could not retrieve address details.");
-        return;
-      }
-
-      const addr = data.address;
 
       if (typeof addr.latitude !== "number" || typeof addr.longitude !== "number") {
         setAddrError("This address does not have coordinates.");
@@ -1589,22 +1568,11 @@ export default function HomePage() {
     setAddrError("");
 
     const handleCoords = async (latitude: number, longitude: number) => {
-      const res = await fetch(
-        `/api/address/reverse-geocode?lat=${latitude}&lng=${longitude}`
-      );
-      if (!res.ok) {
+      const addr = await reverseGeocode(latitude, longitude);
+      if (!addr) {
         setAddrError("Unable to detect address.");
         return;
       }
-
-      const data = await res.json();
-
-      if (!data.address) {
-        setAddrError("Unable to detect address.");
-        return;
-      }
-
-      const addr = data.address;
 
       if (typeof addr.latitude !== "number" || typeof addr.longitude !== "number") {
         setAddrError("Detected address has no coordinates.");
@@ -1769,17 +1737,16 @@ export default function HomePage() {
         <View style={styles.heroRow}>
           <Pressable
             onPress={() => setLocationSheetOpen(true)}
-            style={styles.locationPill}
+            style={styles.locationCard}
           >
-            <View style={styles.locationIconCircle}>
-              <Text style={styles.locationIcon}>📍</Text>
+            <View style={styles.locationCardHeader}>
+              <Text style={styles.locationCardEyebrow}>Delivery location</Text>
+              <View style={styles.locationCardChip}>
+                <Text style={styles.locationCardChipText}>Change</Text>
+              </View>
             </View>
-            <View style={styles.locationTextCol}
-            >
-              <Text style={styles.locationLabel}>Deliver to</Text>
-              <Text style={styles.locationValue}>{addressLabel}</Text>
-              <Text style={styles.locationSubLabel}>{addressSubLabel}</Text>
-            </View>
+            <Text style={styles.locationValue}>{addressLabel}</Text>
+            <Text style={styles.locationSubLabel}>{addressSubLabel}</Text>
           </Pressable>
 
           <View style={styles.searchWrapper}>
@@ -1831,11 +1798,11 @@ export default function HomePage() {
 
         <View style={styles.section}>
           <SectionTitle
-            eyebrow="Tonight's Picks"
-            title="Discover the New Essentials"
+            eyebrow="Browse categories"
+            title="Shop by aisle"
             action={
               <View style={styles.sectionAction}>
-                <Text style={styles.sectionActionText}>Curated by category</Text>
+                <Text style={styles.sectionActionText}>Updated daily</Text>
               </View>
             }
           />
@@ -1900,7 +1867,7 @@ export default function HomePage() {
                       <FlatList
                         data={visibleChildCategories}
                         keyExtractor={(item) => item.id}
-                        numColumns={4}
+                        numColumns={2}
                         scrollEnabled={false}
                         columnWrapperStyle={styles.categoryGridRow}
                         renderItem={({ item }) => (
@@ -1918,6 +1885,31 @@ export default function HomePage() {
               })}
             </View>
           )}
+        </View>
+
+        <View style={styles.section}>
+          <SectionTitle eyebrow="Offers" title="Today’s highlights" />
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.promoRow}
+          >
+            {PROMO_BANNERS.map((banner) => (
+              <View
+                key={banner.id}
+                style={[styles.promoCard, { borderColor: banner.tone }]}
+              >
+                <Text style={[styles.promoEyebrow, { color: banner.tone }]}>
+                  Limited time
+                </Text>
+                <Text style={styles.promoTitle}>{banner.title}</Text>
+                <Text style={styles.promoSubtitle}>{banner.subtitle}</Text>
+                <View style={[styles.promoCta, { backgroundColor: banner.tone }]}>
+                  <Text style={styles.promoCtaText}>{banner.cta}</Text>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
         </View>
       </ScrollView>
     </View>
@@ -2158,53 +2150,51 @@ const styles = StyleSheet.create({
     gap: 12,
     alignItems: "stretch",
   },
-  locationPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+  locationCard: {
+    borderRadius: 20,
+    backgroundColor: "#fff",
+    padding: 16,
     borderWidth: 1,
     borderColor: "#ede9fe",
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
     shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
   },
-  locationIconCircle: {
-    height: 36,
-    width: 36,
-    borderRadius: 18,
-    backgroundColor: "#f5f3ff",
+  locationCardHeader: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
   },
-  locationIcon: {
-    fontSize: 16,
-    color: "#7e22ce",
+  locationCardEyebrow: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    color: "#9ca3af",
+    fontWeight: "600",
   },
-  locationTextCol: {
-    flexDirection: "column",
-    alignItems: "flex-start",
+  locationCardChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#c4b5fd",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: "#f5f3ff",
   },
-  locationLabel: {
+  locationCardChipText: {
     fontSize: 11,
     fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    color: "#9ca3af",
+    color: "#7c3aed",
   },
   locationValue: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: "700",
     color: "#111827",
-    maxWidth: 160,
   },
   locationSubLabel: {
-    fontSize: 11,
+    marginTop: 4,
+    fontSize: 12,
     color: "#6b7280",
-    maxWidth: 160,
   },
   searchWrapper: {
     position: "relative",
@@ -2258,7 +2248,7 @@ const styles = StyleSheet.create({
     color: "#6b7280",
   },
   section: {
-    marginTop: 40,
+    marginTop: 32,
   },
   sectionTitleWrapper: {
     marginBottom: 24,
@@ -2376,24 +2366,19 @@ const styles = StyleSheet.create({
     color: "#6b7280",
   },
   categoryGridRow: {
-    justifyContent: "space-between",
-    marginBottom: 16,
+    gap: 12,
+    marginBottom: 12,
   },
   categoryTileWrapper: {
     flex: 1,
     alignItems: "center",
-    gap: 8,
-    marginHorizontal: 4,
-    marginBottom: 16,
-  },
-  categoryTileImageContainer: {
-    width: "100%",
-    alignItems: "center",
+    gap: 10,
+    marginBottom: 12,
   },
   categoryTileImageWrapper: {
     width: "100%",
-    aspectRatio: 1,
-    borderRadius: 16,
+    aspectRatio: 1.2,
+    borderRadius: 18,
     backgroundColor: "#fff",
     shadowColor: "#000",
     shadowOpacity: 0.04,
@@ -2405,8 +2390,8 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   categoryTileImage: {
-    width: "70%",
-    height: "70%",
+    width: "80%",
+    height: "80%",
     resizeMode: "contain",
   },
   categoryTileInitial: {
@@ -2415,10 +2400,53 @@ const styles = StyleSheet.create({
     color: "#7e22ce",
   },
   categoryTileLabel: {
-    fontSize: 11,
-    fontWeight: "600",
+    fontSize: 13,
+    fontWeight: "700",
     color: "#374151",
     textAlign: "center",
+  },
+  promoRow: {
+    gap: 12,
+    paddingRight: 16,
+  },
+  promoCard: {
+    width: 240,
+    borderRadius: 20,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+  },
+  promoEyebrow: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    fontWeight: "700",
+  },
+  promoTitle: {
+    marginTop: 8,
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  promoSubtitle: {
+    marginTop: 6,
+    fontSize: 12,
+    color: "#6b7280",
+  },
+  promoCta: {
+    marginTop: 12,
+    borderRadius: 999,
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  promoCtaText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#fff",
   },
   modalBackdrop: {
     flex: 1,
