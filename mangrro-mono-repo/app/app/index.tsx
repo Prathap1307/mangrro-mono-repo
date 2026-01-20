@@ -12,6 +12,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
+import * as Location from "expo-location";
 
 import type {
   Category,
@@ -1524,14 +1525,21 @@ export default function HomePage() {
   };
 
   const checkRadius = async (lat: number, lng: number) => {
-    const radiusRes = await fetch("/api/delivery/check", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ latitude: lat, longitude: lng }),
-    });
+    try {
+      const radiusRes = await fetch("/api/delivery/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ latitude: lat, longitude: lng }),
+      });
 
-    const radiusData = await radiusRes.json();
-    return radiusData.deliverable === true;
+      if (!radiusRes.ok) return false;
+
+      const radiusData = await radiusRes.json();
+      return radiusData.deliverable === true;
+    } catch (error) {
+      console.error("Delivery radius check failed:", error);
+      return false;
+    }
   };
 
   const selectAddressSuggestion = async (s: any) => {
@@ -1577,62 +1585,84 @@ export default function HomePage() {
   };
 
   const detectLocation = () => {
-    if (!globalThis.navigator?.geolocation) {
-      setAddrError("Geolocation not supported.");
-      return;
-    }
-
     setAddrLoading(true);
     setAddrError("");
 
-    globalThis.navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const { latitude, longitude } = pos.coords;
-          const res = await fetch(
-            `/api/address/reverse-geocode?lat=${latitude}&lng=${longitude}`
-          );
-          if (!res.ok) {
-            setAddrError("Unable to detect address.");
-            return;
+    const handleCoords = async (latitude: number, longitude: number) => {
+      const res = await fetch(
+        `/api/address/reverse-geocode?lat=${latitude}&lng=${longitude}`
+      );
+      if (!res.ok) {
+        setAddrError("Unable to detect address.");
+        return;
+      }
+
+      const data = await res.json();
+
+      if (!data.address) {
+        setAddrError("Unable to detect address.");
+        return;
+      }
+
+      const addr = data.address;
+
+      if (typeof addr.latitude !== "number" || typeof addr.longitude !== "number") {
+        setAddrError("Detected address has no coordinates.");
+        return;
+      }
+
+      const ok = await checkRadius(addr.latitude, addr.longitude);
+      if (!ok) {
+        setAddrError(
+          "Sorry, we don’t currently deliver to this location. It’s a bit too far. If you still need delivery, please contact our team."
+        );
+        return;
+      }
+
+      await handleAddressAccepted(addr);
+    };
+
+    if (globalThis.navigator?.geolocation) {
+      globalThis.navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          try {
+            const { latitude, longitude } = pos.coords;
+            await handleCoords(latitude, longitude);
+          } catch (err) {
+            console.error("Location detection failed:", err);
+            setAddrError("Something went wrong. Please try again.");
+          } finally {
+            setAddrLoading(false);
           }
-
-          const data = await res.json();
-
-          if (!data.address) {
-            setAddrError("Unable to detect address.");
-            return;
-          }
-
-          const addr = data.address;
-
-          if (typeof addr.latitude !== "number" || typeof addr.longitude !== "number") {
-            setAddrError("Detected address has no coordinates.");
-            return;
-          }
-
-          const ok = await checkRadius(addr.latitude, addr.longitude);
-          if (!ok) {
-            setAddrError(
-              "Sorry, we don’t currently deliver to this location. It’s a bit too far. If you still need delivery, please contact our team."
-            );
-            return;
-          }
-
-          await handleAddressAccepted(addr);
-        } catch (err) {
-          console.error("Location detection failed:", err);
-          setAddrError("Something went wrong. Please try again.");
-        } finally {
+        },
+        () => {
+          setAddrError("Location permission denied.");
           setAddrLoading(false);
+        },
+        { enableHighAccuracy: true }
+      );
+      return;
+    }
+
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          setAddrError("Location permission denied.");
+          return;
         }
-      },
-      () => {
-        setAddrError("Location permission denied.");
+
+        const position = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
+        await handleCoords(position.coords.latitude, position.coords.longitude);
+      } catch (err) {
+        console.error("Location detection failed:", err);
+        setAddrError("Something went wrong. Please try again.");
+      } finally {
         setAddrLoading(false);
-      },
-      { enableHighAccuracy: true }
-    );
+      }
+    })();
   };
 
   const mustSelectAddress = !address;
