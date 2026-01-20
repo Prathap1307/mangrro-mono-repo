@@ -1,7 +1,21 @@
+import Constants from "expo-constants";
 import { Stack } from "expo-router";
+import { ClerkProvider } from "@clerk/clerk-expo";
 
 export default function RootLayout() {
-  // TODO: Add providers (auth/cart/favourites/delivery) to match web layout.
-  return <Stack screenOptions={{ headerShown: false }} />;
+  const clerkPublishableKey =
+    process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ??
+    (Constants.expoConfig?.extra as { clerkPublishableKey?: string } | undefined)
+      ?.clerkPublishableKey;
+
+  if (!clerkPublishableKey) {
+    console.warn("Clerk publishable key is missing; rendering without Clerk.");
+    return <Stack screenOptions={{ headerShown: false }} />;
+  }
+
+  return (
+    <ClerkProvider publishableKey={clerkPublishableKey}>
+      <Stack screenOptions={{ headerShown: false }} />
+    </ClerkProvider>
+  );
 }
-  
