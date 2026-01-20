@@ -216,15 +216,15 @@ export default function AdminRestaurantsClient({ initialRestaurants }: Props) {
         <AdminPageTitle
           title="Order Food"
           description="Add and manage restaurant profiles for the food marketplace."
-          actions={
+          action={
             <button
               onClick={() => {
                 resetForm();
                 setModalOpen(true);
               }}
-              className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5"
+              className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5"
             >
-              <FiPlus /> Add Restaurant
+              <FiPlus className="text-base" /> Add Restaurant
             </button>
           }
         />
