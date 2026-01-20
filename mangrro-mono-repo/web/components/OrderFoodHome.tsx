@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import {
   FiChevronDown,
   FiMic,
@@ -177,9 +178,10 @@ export default function OrderFoodHome({
           </div>
         ) : (
           filteredRestaurants.map((restaurant) => (
-            <div
+            <Link
               key={restaurant.id}
-              className="overflow-hidden rounded-3xl bg-white shadow-lg"
+              href={`/restaurants/${encodeURIComponent(restaurant.name)}`}
+              className="overflow-hidden rounded-3xl bg-white shadow-lg transition hover:-translate-y-1"
             >
               <div className="relative h-48 w-full">
                 {restaurant.imageUrl ? (
@@ -220,7 +222,7 @@ export default function OrderFoodHome({
                 <p className="text-xs text-gray-500">{restaurant.description}</p>
                 <p className="text-xs text-gray-400">{restaurant.address}</p>
               </div>
-            </div>
+            </Link>
           ))
         )}
       </div>
