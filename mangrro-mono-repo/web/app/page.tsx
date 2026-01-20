@@ -5,7 +5,6 @@
 import { useAuth } from "@clerk/nextjs";
 
 import Navbar from "@/components/Navbar";
-import Hero from "@/components/Hero";
 import SectionTitle from "@/components/SectionTitle";
 import CategoryIconTile from "@/components/CategoryIconTile";
 
@@ -13,7 +12,7 @@ import { useDelivery } from "@/components/context/DeliveryContext";
 
 import type { Product } from "@/data/products";
 import type { Item } from "@/types";
-import { FiMapPin, FiTarget } from "react-icons/fi";
+import { FiCoffee, FiMapPin, FiShoppingBag, FiTarget } from "react-icons/fi";
 import BookDeliveryModal from "@/components/BookDeliveryModal";
 import type {
   CategorySchedule,
@@ -333,6 +332,7 @@ interface Subcategory {
 
     const [search, setSearch] = useState("");
     const [searchOpen, setSearchOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState<"groceries" | "food">("groceries");
 
 
     /* --- LOCATION SHEET STATE --- */
@@ -891,7 +891,7 @@ interface Subcategory {
     const [bookOpen, setBookOpen] = useState(false);
 
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 pb-28 md:pb-0">
         {/* NAVBAR (no location here) */}
         <Navbar onSearchChange={setSearch} />
 
@@ -1057,6 +1057,11 @@ interface Subcategory {
               )}
             </div>
           </div>
+          {activeTab === "food" && (
+            <div className="mt-4 max-w-3xl mx-auto rounded-2xl border border-purple-100 bg-white px-4 py-3 text-sm font-semibold text-purple-700 shadow-sm">
+              Order food homepage
+            </div>
+          )}
         </div>
 
         {/* CATEGORY GRID */}
@@ -1143,6 +1148,50 @@ interface Subcategory {
             </div>
           )}
         </section>
+        <div className="fixed bottom-4 left-0 right-0 z-50 flex justify-center md:hidden">
+          <div className="flex w-[92%] max-w-md items-center justify-around rounded-3xl bg-white/95 px-6 py-3 shadow-[0_12px_30px_rgba(0,0,0,0.15)] backdrop-blur">
+            <button
+              type="button"
+              onClick={() => setActiveTab("groceries")}
+              className={`flex flex-col items-center gap-1 text-xs font-semibold ${
+                activeTab === "groceries"
+                  ? "text-purple-600"
+                  : "text-gray-500"
+              }`}
+            >
+              <span
+                className={`flex h-10 w-10 items-center justify-center rounded-full ${
+                  activeTab === "groceries"
+                    ? "bg-purple-50 text-purple-600"
+                    : "bg-gray-100 text-gray-400"
+                }`}
+              >
+                <FiShoppingBag className="text-lg" />
+              </span>
+              Order groceries
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("food")}
+              className={`flex flex-col items-center gap-1 text-xs font-semibold ${
+                activeTab === "food"
+                  ? "text-purple-600"
+                  : "text-gray-500"
+              }`}
+            >
+              <span
+                className={`flex h-10 w-10 items-center justify-center rounded-full ${
+                  activeTab === "food"
+                    ? "bg-purple-50 text-purple-600"
+                    : "bg-gray-100 text-gray-400"
+                }`}
+              >
+                <FiCoffee className="text-lg" />
+              </span>
+              Order food
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
