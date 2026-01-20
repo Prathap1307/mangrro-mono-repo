@@ -3,10 +3,13 @@
 import Image from "next/image";
 import { useMemo, useState } from "react";
 import {
+  FiArrowLeft,
   FiChevronDown,
   FiMic,
+  FiMoreVertical,
   FiSearch,
   FiStar,
+  FiUserPlus,
   FiX,
 } from "react-icons/fi";
 
@@ -90,6 +93,20 @@ export default function RestaurantMenuPage({
   return (
     <div className="min-h-screen bg-slate-50 pb-28">
       <div className="mx-auto max-w-3xl px-4 pb-8 pt-6">
+        <div className="mb-4 flex items-center justify-between">
+          <button className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-600 shadow">
+            <FiArrowLeft />
+          </button>
+          <div className="flex items-center gap-3">
+            <button className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm">
+              <FiUserPlus /> Group Order
+            </button>
+            <button className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-600 shadow">
+              <FiMoreVertical />
+            </button>
+          </div>
+        </div>
+
         <div className="rounded-[32px] bg-white p-5 shadow-lg">
           <div className="flex items-center justify-between">
             <div>
