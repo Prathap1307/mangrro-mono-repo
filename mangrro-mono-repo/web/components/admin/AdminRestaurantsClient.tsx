@@ -270,6 +270,8 @@ export default function AdminRestaurantsClient({ initialRestaurants }: Props) {
                     <div className="flex items-center gap-2">
                       <Link
                         href={`/admin/${encodeURIComponent(record.name)}`}
+                        target="_blank"
+                        rel="noreferrer"
                         className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:border-blue-200 hover:text-blue-600"
                       >
                         Manage
