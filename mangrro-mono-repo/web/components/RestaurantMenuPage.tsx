@@ -89,7 +89,9 @@ export default function RestaurantMenuPage({
     null,
   );
   const [previewItem, setPreviewItem] = useState<RestaurantItem | null>(null);
+  const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [collapsedSections, setCollapsedSections] = useState<string[]>([]);
 
   useEffect(() => {
     let mounted = true;
@@ -238,6 +240,20 @@ export default function RestaurantMenuPage({
     return addonCategoryList.filter((category) => allowed.has(category.id));
   }, [addonCategoryList, selectedItem]);
 
+  const selectedAddonItems = useMemo(() => {
+    if (selectedAddonIds.length === 0) return [];
+    return addonItems.filter((addon) => selectedAddonIds.includes(addon.id));
+  }, [addonItems, selectedAddonIds]);
+
+  const addonTotal = useMemo(
+    () =>
+      selectedAddonItems.reduce(
+        (total, addon) => total + parsePrice(addon.price),
+        0,
+      ),
+    [selectedAddonItems],
+  );
+
   const categorySectionLookup = useMemo(
     () =>
       new Map(
@@ -256,40 +272,76 @@ export default function RestaurantMenuPage({
 
   const handleAddToFoodCart = () => {
     if (!selectedItem) return;
+    const addonDetails = selectedAddonItems.map((addon) => ({
+      id: addon.id,
+      name: addon.name,
+      price: parsePrice(addon.price),
+      categoryId: addon.categoryId,
+    }));
+    const basePrice = parsePrice(selectedItem.price);
+    const totalPrice = basePrice + addonTotal;
     addFoodItem({
-      id: selectedItem.id,
+      id: `${selectedItem.id}::${selectedAddonIds.join(",")}`,
       name: selectedItem.name,
-      price: parsePrice(selectedItem.price),
+      price: totalPrice,
+      basePrice,
       image: selectedItem.imageUrl,
       available: true,
       description: selectedItem.description,
       keywords: selectedItem.keywords,
       category: selectedItem.categoryName,
+      addons: addonDetails,
     });
+    localStorage.setItem("food-cart-restaurant", restaurantName);
     setAddonOpen(false);
+    setSelectedAddonIds([]);
   };
 
   const handleAddFromCard = (item: RestaurantItem) => {
     if (item.addonCategoryIds?.length) {
       setSelectedItem(item);
       setAddonOpen(true);
+      setSelectedAddonIds([]);
       return;
     }
     addFoodItem({
       id: item.id,
       name: item.name,
       price: parsePrice(item.price),
+      basePrice: parsePrice(item.price),
       image: item.imageUrl,
       available: true,
       description: item.description,
       keywords: item.keywords,
       category: item.categoryName,
     });
+    localStorage.setItem("food-cart-restaurant", restaurantName);
+  };
+
+  const toggleAddonSelection = (addon: AddonItem, multiSelect: boolean) => {
+    setSelectedAddonIds((prev) => {
+      if (prev.includes(addon.id)) {
+        return prev.filter((id) => id !== addon.id);
+      }
+      if (!multiSelect) {
+        const sameCategoryIds = addonItems
+          .filter((item) => item.categoryId === addon.categoryId)
+          .map((item) => item.id);
+        return [...prev.filter((id) => !sameCategoryIds.includes(id)), addon.id];
+      }
+      return [...prev, addon.id];
+    });
   };
 
   const handleFilterToggle = (key: string) => {
     setActiveFilters((prev) =>
       prev.includes(key) ? prev.filter((filter) => filter !== key) : [...prev, key],
+    );
+  };
+
+  const toggleSection = (title: string) => {
+    setCollapsedSections((prev) =>
+      prev.includes(title) ? prev.filter((item) => item !== title) : [...prev, title],
     );
   };
 
@@ -381,16 +433,25 @@ export default function RestaurantMenuPage({
           ) : (
             filteredSections.map((section) => (
               <div key={section.title}>
-                <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => toggleSection(section.title)}
+                  className="flex w-full items-center justify-between"
+                >
                   <h2
                     id={categorySectionLookup.get(section.title)}
                     className="text-lg font-bold text-slate-900"
                   >
                     {section.title}
                   </h2>
-                  <FiChevronDown className="text-slate-400" />
-                </div>
-                <div className="mt-4 grid gap-4">
+                  <FiChevronDown
+                    className={`text-slate-400 transition ${
+                      collapsedSections.includes(section.title) ? "-rotate-90" : ""
+                    }`}
+                  />
+                </button>
+                {!collapsedSections.includes(section.title) && (
+                  <div className="mt-4 grid gap-4">
                   {section.items.map((item) => (
                     <div
                       key={item.id}
@@ -463,7 +524,8 @@ export default function RestaurantMenuPage({
                       </div>
                     </div>
                   ))}
-                </div>
+                  </div>
+                )}
               </div>
             ))
           )}
@@ -555,7 +617,12 @@ export default function RestaurantMenuPage({
                           >
                             <span>{item.name}</span>
                             <span className="text-slate-500">+ {item.price}</span>
-                            <input type="checkbox" className="h-4 w-4" />
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4"
+                              checked={selectedAddonIds.includes(item.id)}
+                              onChange={() => toggleAddonSelection(item, category.multiSelect)}
+                            />
                           </label>
                         ))
                       )}
@@ -569,7 +636,7 @@ export default function RestaurantMenuPage({
                 {selectedItem ? selectedItem.name : "Item"}
               </span>
               <button onClick={handleAddToFoodCart}>
-                Add Item | ₹{parsePrice(selectedItem?.price ?? "0")}
+                Add Item | ₹{parsePrice(selectedItem?.price ?? "0") + addonTotal}
               </button>
             </div>
           </div>

@@ -15,13 +15,22 @@ export interface FoodCartItem {
   id: string;
   name: string;
   price: number;
+  basePrice: number;
   quantity: number;
   image: string;
+  addons?: FoodCartAddon[];
+}
+
+export interface FoodCartAddon {
+  id: string;
+  name: string;
+  price: number;
+  categoryId?: string;
 }
 
 interface FoodCartContextValue {
   items: FoodCartItem[];
-  addItem: (product: Product) => void;
+  addItem: (product: FoodCartProduct) => void;
   increase: (id: string) => void;
   decrease: (id: string) => void;
   remove: (id: string) => void;
@@ -41,6 +50,11 @@ export function useFoodCart() {
 
 const STORAGE_KEY = "food-cart";
 
+export interface FoodCartProduct extends Product {
+  basePrice?: number;
+  addons?: FoodCartAddon[];
+}
+
 export function FoodCartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<FoodCartItem[]>([]);
 
@@ -53,7 +67,7 @@ export function FoodCartProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   }, [items]);
 
-  const addItem = useCallback((product: Product) => {
+  const addItem = useCallback((product: FoodCartProduct) => {
     setItems((current) => {
       const existing = current.find((item) => item.id === product.id);
       if (existing) {
@@ -64,18 +78,21 @@ export function FoodCartProvider({ children }: { children: ReactNode }) {
         );
       }
 
+      const basePrice = product.basePrice ?? product.price;
       return [
         ...current,
         {
           id: product.id,
           name: product.name,
           price: product.price,
+          basePrice,
           quantity: 1,
           image:
             product.image ||
             product.imageUrl ||
             product.img ||
             "/placeholder.webp",
+          addons: product.addons,
         },
       ];
     });

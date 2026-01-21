@@ -16,6 +16,7 @@ export interface AdminRestaurant {
   items?: RestaurantItem[];
   addonCategories?: AddonCategory[];
   addonItems?: AddonItem[];
+  offers?: RestaurantOffer[];
   address: string;
   lat: string;
   lng: string;
@@ -92,6 +93,15 @@ export interface AddonItem {
   categoryId?: string;
 }
 
+export interface RestaurantOffer {
+  id: string;
+  name: string;
+  code: string;
+  type: "percentage" | "fixed";
+  label: string;
+  value: string;
+}
+
 function getClient() {
   const config: DynamoDBClientConfig = { region: process.env.AWS_REGION };
   if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
@@ -133,6 +143,7 @@ export async function listAdminRestaurants(): Promise<AdminRestaurant[]> {
     addonItems: Array.isArray(item.addonItems)
       ? (item.addonItems as AddonItem[])
       : [],
+    offers: Array.isArray(item.offers) ? (item.offers as RestaurantOffer[]) : [],
     address: (item.address as string) || "",
     lat: (item.lat as string) || "",
     lng: (item.lng as string) || "",
@@ -268,6 +279,31 @@ export async function saveAdminAddonItems(
   );
 
   return addonItems;
+}
+
+export async function saveAdminRestaurantOffers(
+  restaurantName: string,
+  offers: RestaurantOffer[],
+) {
+  if (!RESTAURANTS_TABLE) return [];
+  const existing = await getAdminRestaurantByName(restaurantName);
+  if (!existing) return [];
+  const client = getClient();
+  const updated: AdminRestaurant = {
+    ...existing,
+    offers,
+  };
+
+  await client.send(
+    new PutCommand({
+      TableName: RESTAURANTS_TABLE,
+      Item: {
+        ...updated,
+      },
+    }),
+  );
+
+  return offers;
 }
 
 export async function saveAdminRestaurant(restaurant: AdminRestaurant) {
