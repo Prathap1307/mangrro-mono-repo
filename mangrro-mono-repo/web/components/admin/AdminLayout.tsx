@@ -15,9 +15,43 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     [pathname]
   );
 
+  const isRestaurantAdmin = useMemo(() => {
+    if (!pathname?.startsWith("/admin/")) return false;
+    const segments = pathname.split("/").filter(Boolean);
+    const section = segments[1];
+    if (!section) return false;
+    const mainSections = new Set([
+      "dashboard",
+      "orders",
+      "main-categories",
+      "main-category-scheduler",
+      "categories",
+      "category-scheduler",
+      "subcategories",
+      "subcategory-scheduler",
+      "items",
+      "item-scheduler",
+      "radius",
+      "delivery-charges",
+      "surcharge",
+      "logout",
+      "login",
+      "order-food",
+    ]);
+    return !mainSections.has(section);
+  }, [pathname]);
+
   if (isLoginPage) {
     return (
       <div className="min-h-screen overflow-x-hidden bg-slate-50">
+        {children}
+      </div>
+    );
+  }
+
+  if (isRestaurantAdmin) {
+    return (
+      <div className="min-h-screen overflow-x-hidden bg-slate-50 text-slate-900">
         {children}
       </div>
     );
