@@ -3,11 +3,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   FiArrowLeft,
   FiChevronDown,
   FiMic,
-  FiMoreVertical,
   FiSearch,
   FiStar,
   FiUserPlus,
@@ -68,7 +68,14 @@ interface RestaurantDetails {
 export default function RestaurantMenuPage({
   restaurantName,
 }: RestaurantMenuPageProps) {
-  const { addItem: addFoodItem, itemCount: foodItemCount } = useFoodCart();
+  const router = useRouter();
+  const {
+    addItem: addFoodItem,
+    itemCount: foodItemCount,
+    getItemQuantity,
+    increase,
+    decrease,
+  } = useFoodCart();
   const [search, setSearch] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [addonOpen, setAddonOpen] = useState(false);
@@ -81,6 +88,7 @@ export default function RestaurantMenuPage({
   const [restaurantDetails, setRestaurantDetails] = useState<RestaurantDetails | null>(
     null,
   );
+  const [previewItem, setPreviewItem] = useState<RestaurantItem | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -224,11 +232,22 @@ export default function RestaurantMenuPage({
 
   const visibleAddonCategories = useMemo(() => {
     if (!selectedItem?.addonCategoryIds?.length) {
-      return addonCategoryList;
+      return [];
     }
     const allowed = new Set(selectedItem.addonCategoryIds);
     return addonCategoryList.filter((category) => allowed.has(category.id));
   }, [addonCategoryList, selectedItem]);
+
+  const categorySectionLookup = useMemo(
+    () =>
+      new Map(
+        categories.map((category) => [
+          category.name,
+          category.name.toLowerCase().replace(/\s+/g, "-"),
+        ]),
+      ),
+    [categories],
+  );
 
   const parsePrice = (value: string) => {
     const parsed = Number(String(value).replace(/[^0-9.]/g, ""));
@@ -250,6 +269,24 @@ export default function RestaurantMenuPage({
     setAddonOpen(false);
   };
 
+  const handleAddFromCard = (item: RestaurantItem) => {
+    if (item.addonCategoryIds?.length) {
+      setSelectedItem(item);
+      setAddonOpen(true);
+      return;
+    }
+    addFoodItem({
+      id: item.id,
+      name: item.name,
+      price: parsePrice(item.price),
+      image: item.imageUrl,
+      available: true,
+      description: item.description,
+      keywords: item.keywords,
+      category: item.categoryName,
+    });
+  };
+
   const handleFilterToggle = (key: string) => {
     setActiveFilters((prev) =>
       prev.includes(key) ? prev.filter((filter) => filter !== key) : [...prev, key],
@@ -261,15 +298,15 @@ export default function RestaurantMenuPage({
       <Navbar />
       <div className="mx-auto max-w-3xl px-4 pb-8 pt-6">
         <div className="mb-4 flex items-center justify-between">
-          <button className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-600 shadow">
+          <button
+            onClick={() => router.back()}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-emerald-200 hover:text-emerald-600"
+          >
             <FiArrowLeft />
           </button>
           <div className="flex items-center gap-3">
             <button className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm">
               <FiUserPlus /> Group Order
-            </button>
-            <button className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-600 shadow">
-              <FiMoreVertical />
             </button>
           </div>
         </div>
@@ -277,7 +314,7 @@ export default function RestaurantMenuPage({
         <div className="rounded-[32px] bg-white p-5 shadow-lg">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-blue-500">
+              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">
                 Delivery Star
               </p>
               <h1 className="text-2xl font-bold text-slate-900">
@@ -301,7 +338,7 @@ export default function RestaurantMenuPage({
         </div>
 
         <div className="mt-5 flex items-center gap-3">
-          <div className="flex flex-1 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <div className="flex flex-1 items-center gap-3 rounded-2xl border border-emerald-100 bg-white px-4 py-3 shadow-sm">
             <FiSearch className="text-slate-400" />
             <input
               value={search}
@@ -311,7 +348,7 @@ export default function RestaurantMenuPage({
             />
             <FiMic className="text-orange-500" />
           </div>
-          <button className="flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-100 text-purple-600">
+          <button className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600">
             <FiStar />
           </button>
         </div>
@@ -345,7 +382,10 @@ export default function RestaurantMenuPage({
             filteredSections.map((section) => (
               <div key={section.title}>
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-slate-900">
+                  <h2
+                    id={categorySectionLookup.get(section.title)}
+                    className="text-lg font-bold text-slate-900"
+                  >
                     {section.title}
                   </h2>
                   <FiChevronDown className="text-slate-400" />
@@ -354,7 +394,7 @@ export default function RestaurantMenuPage({
                   {section.items.map((item) => (
                     <div
                       key={item.id}
-                      className="flex items-center gap-4 rounded-3xl bg-white p-4 shadow-sm"
+                      className="flex items-center gap-4 rounded-3xl border border-emerald-50 bg-white p-4 shadow-sm"
                     >
                       <div className="flex-1 space-y-2">
                         <p className="text-sm font-semibold text-slate-900">
@@ -374,29 +414,50 @@ export default function RestaurantMenuPage({
                           </p>
                         )}
                       </div>
-                      <div className="relative h-24 w-28 overflow-hidden rounded-2xl">
+                      <div className="relative h-28 w-32 overflow-hidden rounded-2xl">
                         {item.imageUrl ? (
-                          <Image
-                            src={item.imageUrl}
-                            alt={item.name}
-                            fill
-                            className="object-cover"
-                            sizes="(max-width: 768px) 112px, 160px"
-                          />
+                          <button
+                            type="button"
+                            onClick={() => setPreviewItem(item)}
+                            className="relative h-full w-full"
+                          >
+                            <Image
+                              src={item.imageUrl}
+                              alt={item.name}
+                              fill
+                              className="object-cover"
+                              sizes="(max-width: 768px) 128px, 160px"
+                            />
+                          </button>
                         ) : (
                           <div className="flex h-full w-full items-center justify-center bg-slate-100 text-xs text-slate-400">
                             No image
                           </div>
                         )}
-                      <button
-                        onClick={() => {
-                          setSelectedItem(item);
-                          setAddonOpen(true);
-                        }}
-                        className="absolute bottom-2 right-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-600 shadow"
-                      >
-                        ADD
-                      </button>
+                        {getItemQuantity(item.id) === 0 ? (
+                          <button
+                            onClick={() => handleAddFromCard(item)}
+                            className="absolute -bottom-4 right-1/2 translate-x-1/2 rounded-2xl border border-emerald-200 bg-white px-6 py-2 text-sm font-semibold text-emerald-600 shadow-lg"
+                          >
+                            ADD
+                          </button>
+                        ) : (
+                          <div className="absolute -bottom-4 right-1/2 flex -translate-x-1/2 items-center gap-4 rounded-2xl border border-emerald-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-600 shadow-lg">
+                            <button
+                              onClick={() => decrease(item.id)}
+                              className="text-lg font-bold"
+                            >
+                              −
+                            </button>
+                            <span>{getItemQuantity(item.id)}</span>
+                            <button
+                              onClick={() => handleAddFromCard(item)}
+                              className="text-lg font-bold"
+                            >
+                              +
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -426,13 +487,20 @@ export default function RestaurantMenuPage({
             <div className="mt-4 space-y-4">
               {(categoryList.length ? categoryList : [{ label: "Menu", count: items.length }]).map(
                 (category) => (
-                  <div
+                  <button
                     key={category.label}
-                    className="flex items-center justify-between text-sm"
+                    onClick={() => {
+                      const anchor = categorySectionLookup.get(category.label);
+                      if (anchor) {
+                        window.location.hash = anchor;
+                      }
+                      setSheetOpen(false);
+                    }}
+                    className="flex w-full items-center justify-between text-sm"
                   >
                     <span>{category.label}</span>
                     <span className="text-slate-400">{category.count}</span>
-                  </div>
+                  </button>
                 ),
               )}
             </div>
@@ -501,6 +569,47 @@ export default function RestaurantMenuPage({
               <button onClick={handleAddToFoodCart}>
                 Add Item | ₹{parsePrice(selectedItem?.price ?? "0")}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {previewItem && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
+          <div className="w-full max-w-md rounded-t-3xl bg-white px-6 py-6 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900">
+                {previewItem.name}
+              </h3>
+              <button
+                onClick={() => setPreviewItem(null)}
+                className="rounded-full bg-slate-100 p-2"
+              >
+                <FiX />
+              </button>
+            </div>
+            <div className="mt-4">
+              {previewItem.imageUrl ? (
+                <div className="relative h-48 w-full overflow-hidden rounded-2xl">
+                  <Image
+                    src={previewItem.imageUrl}
+                    alt={previewItem.name}
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 768px) 100vw, 480px"
+                  />
+                </div>
+              ) : (
+                <div className="flex h-48 items-center justify-center rounded-2xl bg-slate-100 text-sm text-slate-400">
+                  No image available
+                </div>
+              )}
+              <p className="mt-3 text-sm text-slate-600">
+                {previewItem.description || "No description available."}
+              </p>
+              <div className="mt-4 text-lg font-semibold text-slate-900">
+                ₹{parsePrice(previewItem.price)}
+              </div>
             </div>
           </div>
         </div>
