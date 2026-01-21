@@ -21,13 +21,19 @@ export default function FoodCartPageClient() {
     type: "percentage" | "fixed";
     value: string;
   } | null>(null);
-  const [addressModalOpen, setAddressModalOpen] = useState(false);
-  const [formState, setFormState] = useState({
-    line1: "",
-    line2: "",
-    town: "",
-    postcode: "",
-  });
+  const [finderOpen, setFinderOpen] = useState(false);
+  const [finderInput, setFinderInput] = useState("");
+  const [finderSuggestions, setFinderSuggestions] = useState<
+    { id: string; label: string }[]
+  >([]);
+  const [finderLoading, setFinderLoading] = useState(false);
+  const [finderError, setFinderError] = useState("");
+  const [editLine1, setEditLine1] = useState("");
+  const [editLine2, setEditLine2] = useState("");
+  const [editTown, setEditTown] = useState("");
+  const [editPostcode, setEditPostcode] = useState("");
+  const [editLat, setEditLat] = useState<number | undefined>();
+  const [editLng, setEditLng] = useState<number | undefined>();
 
   useEffect(() => {
     const stored = localStorage.getItem("food-cart-offer");
@@ -37,15 +43,16 @@ export default function FoodCartPageClient() {
   }, []);
 
   useEffect(() => {
-    if (address) {
-      setFormState({
-        line1: address.line1 ?? "",
-        line2: address.line2 ?? "",
-        town: address.town ?? "",
-        postcode: address.postcode ?? "",
-      });
-    }
-  }, [address]);
+    if (!finderOpen) return;
+    setFinderError("");
+    setFinderInput(address?.postcode ?? "");
+    setEditLine1(address?.line1 ?? "");
+    setEditLine2(address?.line2 ?? "");
+    setEditTown(address?.town ?? "");
+    setEditPostcode(address?.postcode ?? "");
+    setEditLat(address?.latitude);
+    setEditLng(address?.longitude);
+  }, [address, finderOpen]);
   const addressLabel = address?.line1 || "Select delivery location";
   const addressSubLabel = address
     ? [address.line2, address.town, address.postcode].filter(Boolean).join(", ")
@@ -57,6 +64,113 @@ export default function FoodCartPageClient() {
       : Number(offer.value)
     : 0;
   const totalToPay = Math.max(subtotal - discount, 0);
+
+  useEffect(() => {
+    if (!finderOpen) return;
+    if (finderInput.trim().length < 3) {
+      setFinderSuggestions([]);
+      return;
+    }
+
+    const controller = new AbortController();
+    let cancelled = false;
+    const timeout = setTimeout(async () => {
+      try {
+        setFinderLoading(true);
+        const res = await fetch(
+          `/api/address/search?q=${encodeURIComponent(finderInput)}`,
+          { signal: controller.signal },
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        const suggestions = Array.isArray(data.suggestions)
+          ? data.suggestions
+          : [];
+        if (!cancelled) setFinderSuggestions(suggestions);
+      } catch (error) {
+        if (error instanceof Error && error.name !== "AbortError") {
+          setFinderError("Failed to load address suggestions.");
+        }
+      } finally {
+        if (!cancelled) setFinderLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+      clearTimeout(timeout);
+    };
+  }, [finderInput, finderOpen]);
+
+  const chooseSuggestion = async (suggestion: { id: string; label: string }) => {
+    try {
+      setFinderLoading(true);
+      setFinderError("");
+      const res = await fetch(`/api/address/details?id=${suggestion.id}`);
+      const data = await res.json();
+      if (!data.address) {
+        setFinderError("Could not retrieve full address details.");
+        return;
+      }
+      const found = data.address;
+      setEditLine1(found.line1 ?? "");
+      setEditLine2(found.line2 ?? "");
+      setEditTown(found.town ?? "");
+      setEditPostcode(found.postcode ?? "");
+      setEditLat(found.latitude);
+      setEditLng(found.longitude);
+      setFinderSuggestions([]);
+      setFinderInput(found.postcode ?? "");
+    } catch (error) {
+      setFinderError("Something went wrong selecting this address.");
+    } finally {
+      setFinderLoading(false);
+    }
+  };
+
+  const resolveCoordsIfMissing = async () => {
+    if (typeof editLat === "number" && typeof editLng === "number") return;
+    const query = `${editLine1} ${editTown} ${editPostcode}`.trim();
+    if (query.length < 5) return;
+    try {
+      const res = await fetch(
+        `/api/address/search?q=${encodeURIComponent(query)}`,
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      const first = data.suggestions?.[0];
+      if (!first) return;
+      const detailsRes = await fetch(`/api/address/details?id=${first.id}`);
+      const details = await detailsRes.json();
+      if (!details.address) return;
+      const found = details.address;
+      if (typeof found.latitude === "number" && typeof found.longitude === "number") {
+        setEditLat(found.latitude);
+        setEditLng(found.longitude);
+      }
+    } catch {
+      setFinderError("Could not resolve coordinates for this address.");
+    }
+  };
+
+  const saveFinderAddress = async () => {
+    setFinderError("");
+    if (!editLine1.trim() || !editTown.trim() || !editPostcode.trim()) {
+      setFinderError("Please complete address line 1, town and postcode.");
+      return;
+    }
+    await resolveCoordsIfMissing();
+    setAddress({
+      line1: editLine1.trim(),
+      line2: editLine2.trim() || undefined,
+      town: editTown.trim(),
+      postcode: editPostcode.trim().toUpperCase(),
+      latitude: editLat,
+      longitude: editLng,
+    });
+    setFinderOpen(false);
+  };
 
   useEffect(() => {
     localStorage.setItem("food-cart-total", String(subtotal));
@@ -88,7 +202,7 @@ export default function FoodCartPageClient() {
               <p className="text-xs text-slate-500">{addressSubLabel}</p>
             </div>
             <button
-              onClick={() => setAddressModalOpen(true)}
+              onClick={() => setFinderOpen(true)}
               className="rounded-full border border-emerald-200 px-4 py-2 text-xs font-semibold text-emerald-600"
             >
               Change
@@ -272,7 +386,7 @@ export default function FoodCartPageClient() {
         )}
       </div>
 
-      {addressModalOpen && (
+      {finderOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
           <div className="w-full max-w-md rounded-t-3xl bg-white px-6 py-6 shadow-2xl">
             <div className="flex items-center justify-between">
@@ -280,56 +394,65 @@ export default function FoodCartPageClient() {
                 Change address
               </h3>
               <button
-                onClick={() => setAddressModalOpen(false)}
+                onClick={() => setFinderOpen(false)}
                 className="rounded-full bg-slate-100 px-3 py-1 text-sm"
               >
                 Close
               </button>
             </div>
-            <div className="mt-4 grid gap-3 text-sm">
+            <div className="mt-4 space-y-3 text-sm">
               <input
-                value={formState.line1}
-                onChange={(event) =>
-                  setFormState((prev) => ({ ...prev, line1: event.target.value }))
-                }
+                value={finderInput}
+                onChange={(event) => setFinderInput(event.target.value)}
+                placeholder="Search by postcode or address"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2"
+              />
+              {finderLoading && (
+                <p className="text-xs text-slate-500">Searching...</p>
+              )}
+              {finderSuggestions.length > 0 && (
+                <div className="max-h-40 overflow-y-auto rounded-xl border border-slate-200 bg-white">
+                  {finderSuggestions.map((suggestion) => (
+                    <button
+                      key={suggestion.id}
+                      onClick={() => chooseSuggestion(suggestion)}
+                      className="w-full border-b border-slate-100 px-3 py-2 text-left text-xs text-slate-700 last:border-none"
+                    >
+                      {suggestion.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {finderError && (
+                <p className="text-xs text-rose-500">{finderError}</p>
+              )}
+              <input
+                value={editLine1}
+                onChange={(event) => setEditLine1(event.target.value)}
                 placeholder="Address line 1"
                 className="w-full rounded-xl border border-slate-200 px-3 py-2"
               />
               <input
-                value={formState.line2}
-                onChange={(event) =>
-                  setFormState((prev) => ({ ...prev, line2: event.target.value }))
-                }
+                value={editLine2}
+                onChange={(event) => setEditLine2(event.target.value)}
                 placeholder="Address line 2"
                 className="w-full rounded-xl border border-slate-200 px-3 py-2"
               />
               <input
-                value={formState.town}
-                onChange={(event) =>
-                  setFormState((prev) => ({ ...prev, town: event.target.value }))
-                }
+                value={editTown}
+                onChange={(event) => setEditTown(event.target.value)}
                 placeholder="Town/City"
                 className="w-full rounded-xl border border-slate-200 px-3 py-2"
               />
               <input
-                value={formState.postcode}
-                onChange={(event) =>
-                  setFormState((prev) => ({ ...prev, postcode: event.target.value }))
-                }
+                value={editPostcode}
+                onChange={(event) => setEditPostcode(event.target.value)}
                 placeholder="Postcode"
                 className="w-full rounded-xl border border-slate-200 px-3 py-2"
               />
             </div>
             <button
-              onClick={() => {
-                setAddress({
-                  line1: formState.line1,
-                  line2: formState.line2 || undefined,
-                  town: formState.town,
-                  postcode: formState.postcode,
-                });
-                setAddressModalOpen(false);
-              }}
+              onClick={saveFinderAddress}
               className="mt-4 w-full rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white"
             >
               Save address
