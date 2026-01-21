@@ -29,6 +29,7 @@ interface RestaurantItem {
   strikePrice?: string;
   description?: string;
   imageUrl?: string;
+  addonCategoryIds?: string[];
 }
 
 interface AddonCategory {
@@ -54,6 +55,7 @@ export default function RestaurantMenuPage({
   const [search, setSearch] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [addonOpen, setAddonOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<RestaurantItem | null>(null);
   const [categories, setCategories] = useState<RestaurantCategory[]>([]);
   const [items, setItems] = useState<RestaurantItem[]>([]);
   const [addonCategories, setAddonCategories] = useState<AddonCategory[]>([]);
@@ -159,6 +161,14 @@ export default function RestaurantMenuPage({
       })),
     [addonCategories, addonItems],
   );
+
+  const visibleAddonCategories = useMemo(() => {
+    if (!selectedItem?.addonCategoryIds?.length) {
+      return addonCategoryList;
+    }
+    const allowed = new Set(selectedItem.addonCategoryIds);
+    return addonCategoryList.filter((category) => allowed.has(category.id));
+  }, [addonCategoryList, selectedItem]);
 
   return (
     <div className="min-h-screen bg-slate-50 pb-28">
@@ -283,7 +293,10 @@ export default function RestaurantMenuPage({
                           </div>
                         )}
                       <button
-                        onClick={() => setAddonOpen(true)}
+                        onClick={() => {
+                          setSelectedItem(item);
+                          setAddonOpen(true);
+                        }}
                         className="absolute bottom-2 right-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-600 shadow"
                       >
                         ADD
@@ -343,12 +356,12 @@ export default function RestaurantMenuPage({
               </button>
             </div>
             <div className="mt-4 space-y-5">
-              {addonCategoryList.length === 0 ? (
+              {visibleAddonCategories.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
-                  No addon categories yet.
+                  No addon categories available for this item.
                 </div>
               ) : (
-                addonCategoryList.map((category) => (
+                visibleAddonCategories.map((category) => (
                   <div key={category.id}>
                     <div className="flex items-center justify-between">
                       <div>

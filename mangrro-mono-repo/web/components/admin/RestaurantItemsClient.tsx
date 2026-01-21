@@ -7,7 +7,12 @@ import AdminModal from "./AdminModal";
 import AdminPageTitle from "./AdminPageTitle";
 import AdminShell from "./AdminShell";
 import AdminTable from "./AdminTable";
-import type { RestaurantItem } from "@/lib/admin/restaurants";
+import Link from "next/link";
+import type {
+  AddonCategory,
+  RestaurantCategory,
+  RestaurantItem,
+} from "@/lib/admin/restaurants";
 
 interface RestaurantItemsClientProps {
   restaurantName: string;
@@ -21,17 +26,12 @@ const columns = [
   { key: "actions", label: "Actions" },
 ];
 
-const buildDefaultTax = () => ({
-  enabled: false,
-  type: "percentage" as const,
-  value: "",
-  label: "",
-});
-
 export default function RestaurantItemsClient({
   restaurantName,
 }: RestaurantItemsClientProps) {
   const [items, setItems] = useState<RestaurantItem[]>([]);
+  const [categories, setCategories] = useState<RestaurantCategory[]>([]);
+  const [addonCategories, setAddonCategories] = useState<AddonCategory[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formState, setFormState] = useState({
@@ -48,23 +48,44 @@ export default function RestaurantItemsClient({
     taxValue: "",
     taxLabel: "",
     packingChargeEnabled: false,
+    packingChargeType: "percentage",
+    packingChargeLabel: "",
     packingChargeValue: "",
+    addonCategoryIds: [] as string[],
   });
 
   const endpoint = useMemo(
     () => `/api/admin/restaurants/${encodeURIComponent(restaurantName)}/items`,
     [restaurantName],
   );
+  const categoriesEndpoint = useMemo(
+    () => `/api/admin/restaurants/${encodeURIComponent(restaurantName)}/categories`,
+    [restaurantName],
+  );
+  const addonCategoriesEndpoint = useMemo(
+    () => `/api/admin/restaurants/${encodeURIComponent(restaurantName)}/addon-categories`,
+    [restaurantName],
+  );
 
-  const loadItems = async () => {
-    const res = await fetch(endpoint);
-    const data = await res.json();
-    setItems(Array.isArray(data) ? data : []);
+  const loadData = async () => {
+    const [itemsRes, categoriesRes, addonCategoriesRes] = await Promise.all([
+      fetch(endpoint),
+      fetch(categoriesEndpoint),
+      fetch(addonCategoriesEndpoint),
+    ]);
+    const [itemsData, categoriesData, addonCategoriesData] = await Promise.all([
+      itemsRes.json(),
+      categoriesRes.json(),
+      addonCategoriesRes.json(),
+    ]);
+    setItems(Array.isArray(itemsData) ? itemsData : []);
+    setCategories(Array.isArray(categoriesData) ? categoriesData : []);
+    setAddonCategories(Array.isArray(addonCategoriesData) ? addonCategoriesData : []);
   };
 
   useEffect(() => {
-    void loadItems();
-  }, [endpoint]);
+    void loadData();
+  }, [endpoint, categoriesEndpoint, addonCategoriesEndpoint]);
 
   const handleSave = async () => {
     const id = editingId ?? crypto.randomUUID();
@@ -90,8 +111,13 @@ export default function RestaurantItemsClient({
       },
       packingCharge: {
         enabled: formState.packingChargeEnabled,
+        type: formState.packingChargeType === "fixed" ? "fixed" : "percentage",
+        label: formState.packingChargeLabel,
         value: formState.packingChargeValue,
       },
+      addonCategoryIds: formState.addonCategoryIds.length
+        ? formState.addonCategoryIds
+        : undefined,
     };
 
     const nextItems = editingId
@@ -103,7 +129,7 @@ export default function RestaurantItemsClient({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ items: nextItems }),
     });
-    await loadItems();
+    await loadData();
     setModalOpen(false);
     setEditingId(null);
   };
@@ -124,7 +150,10 @@ export default function RestaurantItemsClient({
       taxValue: item.tax.value,
       taxLabel: item.tax.label,
       packingChargeEnabled: item.packingCharge.enabled,
+      packingChargeType: item.packingCharge.type ?? "percentage",
+      packingChargeLabel: item.packingCharge.label ?? "",
       packingChargeValue: item.packingCharge.value,
+      addonCategoryIds: item.addonCategoryIds ?? [],
     });
     setModalOpen(true);
   };
@@ -136,7 +165,7 @@ export default function RestaurantItemsClient({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ items: nextItems }),
     });
-    await loadItems();
+    await loadData();
   };
 
   const handleImageUpload = async (file?: File) => {
@@ -181,7 +210,10 @@ export default function RestaurantItemsClient({
                   taxValue: "",
                   taxLabel: "",
                   packingChargeEnabled: false,
+                  packingChargeType: "percentage",
+                  packingChargeLabel: "",
                   packingChargeValue: "",
+                  addonCategoryIds: [],
                 });
                 setModalOpen(true);
               }}
@@ -250,7 +282,25 @@ export default function RestaurantItemsClient({
               }))
             }
             placeholder="Top Picks"
-          />
+          >
+            <select
+              value={formState.categoryName}
+              onChange={(event) =>
+                setFormState((prev) => ({
+                  ...prev,
+                  categoryName: event.target.value,
+                }))
+              }
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900"
+            >
+              <option value="">Select category</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.name}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </AdminFormField>
           <AdminFormField
             label="Keywords"
             value={formState.keywords}
@@ -374,17 +424,103 @@ export default function RestaurantItemsClient({
             />
           </AdminFormField>
           {formState.packingChargeEnabled && (
-            <AdminFormField
-              label="Packing charge value"
-              value={formState.packingChargeValue}
-              onChange={(event) =>
-                setFormState((prev) => ({
-                  ...prev,
-                  packingChargeValue: event.target.value,
-                }))
-              }
-            />
+            <>
+              <AdminFormField
+                label="Packing charge type"
+                value={formState.packingChargeType}
+                onChange={(event) =>
+                  setFormState((prev) => ({
+                    ...prev,
+                    packingChargeType: event.target.value,
+                  }))
+                }
+              >
+                <select
+                  value={formState.packingChargeType}
+                  onChange={(event) =>
+                    setFormState((prev) => ({
+                      ...prev,
+                      packingChargeType: event.target.value,
+                    }))
+                  }
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900"
+                >
+                  <option value="percentage">Percentage</option>
+                  <option value="fixed">Fixed</option>
+                </select>
+              </AdminFormField>
+              <AdminFormField
+                label="Packing charge label"
+                value={formState.packingChargeLabel}
+                onChange={(event) =>
+                  setFormState((prev) => ({
+                    ...prev,
+                    packingChargeLabel: event.target.value,
+                  }))
+                }
+                placeholder="Packaging fee"
+              />
+              <AdminFormField
+                label="Packing charge value"
+                value={formState.packingChargeValue}
+                onChange={(event) =>
+                  setFormState((prev) => ({
+                    ...prev,
+                    packingChargeValue: event.target.value,
+                  }))
+                }
+              />
+            </>
           )}
+          <AdminFormField
+            label="Addon categories"
+            hint="Select addon categories for this item."
+            className="md:col-span-2"
+          >
+            <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-slate-700">
+                  Addon categories
+                </p>
+                <Link
+                  href={`/admin/${encodeURIComponent(restaurantName)}/addons-category`}
+                  className="text-xs font-semibold text-blue-600"
+                >
+                  + Add addon category
+                </Link>
+              </div>
+              {addonCategories.length === 0 ? (
+                <p className="text-xs text-slate-500">
+                  No addon categories yet.
+                </p>
+              ) : (
+                <div className="grid gap-2 md:grid-cols-2">
+                  {addonCategories.map((category) => (
+                    <label
+                      key={category.id}
+                      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={formState.addonCategoryIds.includes(category.id)}
+                        onChange={(event) =>
+                          setFormState((prev) => {
+                            const nextIds = event.target.checked
+                              ? [...prev.addonCategoryIds, category.id]
+                              : prev.addonCategoryIds.filter(
+                                  (id) => id !== category.id,
+                                );
+                            return { ...prev, addonCategoryIds: nextIds };
+                          })
+                        }
+                      />
+                      {category.name}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </AdminFormField>
         </div>
 
         <div className="mt-6 flex justify-end gap-3">

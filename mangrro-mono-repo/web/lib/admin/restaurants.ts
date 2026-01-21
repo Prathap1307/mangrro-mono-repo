@@ -67,8 +67,11 @@ export interface RestaurantItem {
   tax: RestaurantItemTax;
   packingCharge: {
     enabled: boolean;
+    type: "percentage" | "fixed";
+    label: string;
     value: string;
   };
+  addonCategoryIds?: string[];
 }
 
 export interface AddonCategory {
