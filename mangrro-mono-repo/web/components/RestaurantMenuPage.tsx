@@ -414,35 +414,37 @@ export default function RestaurantMenuPage({
                           </p>
                         )}
                       </div>
-                      <div className="relative h-28 w-32 overflow-hidden rounded-2xl">
-                        {item.imageUrl ? (
-                          <button
-                            type="button"
-                            onClick={() => setPreviewItem(item)}
-                            className="relative h-full w-full"
-                          >
-                            <Image
-                              src={item.imageUrl}
-                              alt={item.name}
-                              fill
-                              className="object-cover"
-                              sizes="(max-width: 768px) 128px, 160px"
-                            />
-                          </button>
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center bg-slate-100 text-xs text-slate-400">
-                            No image
-                          </div>
-                        )}
+                      <div className="flex w-32 flex-col items-center gap-3">
+                        <div className="relative h-28 w-full overflow-hidden rounded-2xl">
+                          {item.imageUrl ? (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewItem(item)}
+                              className="relative h-full w-full"
+                            >
+                              <Image
+                                src={item.imageUrl}
+                                alt={item.name}
+                                fill
+                                className="object-cover"
+                                sizes="(max-width: 768px) 128px, 160px"
+                              />
+                            </button>
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center bg-slate-100 text-xs text-slate-400">
+                              No image
+                            </div>
+                          )}
+                        </div>
                         {getItemQuantity(item.id) === 0 ? (
                           <button
                             onClick={() => handleAddFromCard(item)}
-                            className="absolute -bottom-4 right-1/2 translate-x-1/2 rounded-2xl border border-emerald-200 bg-white px-6 py-2 text-sm font-semibold text-emerald-600 shadow-lg"
+                            className="w-full rounded-2xl border border-emerald-200 bg-white px-6 py-2 text-sm font-semibold text-emerald-600 shadow-lg"
                           >
                             ADD
                           </button>
                         ) : (
-                          <div className="absolute -bottom-4 right-1/2 flex -translate-x-1/2 items-center gap-4 rounded-2xl border border-emerald-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-600 shadow-lg">
+                          <div className="flex w-full items-center justify-between rounded-2xl border border-emerald-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-600 shadow-lg">
                             <button
                               onClick={() => decrease(item.id)}
                               className="text-lg font-bold"
