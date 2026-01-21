@@ -223,6 +223,11 @@ export default function RestaurantMenuPage({
     [categories, items],
   );
 
+  const parsePrice = (value: string) => {
+    const parsed = Number(String(value).replace(/[^0-9.]/g, ""));
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
   const addonCategoryList = useMemo(
     () =>
       addonCategories.map((category) => ({
@@ -264,11 +269,6 @@ export default function RestaurantMenuPage({
       ),
     [categories],
   );
-
-  const parsePrice = (value: string) => {
-    const parsed = Number(String(value).replace(/[^0-9.]/g, ""));
-    return Number.isFinite(parsed) ? parsed : 0;
-  };
 
   const handleAddToFoodCart = () => {
     if (!selectedItem) return;
