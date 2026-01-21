@@ -10,19 +10,46 @@ import {
   FiSliders,
 } from "react-icons/fi";
 
-const categoryChips = [
-  { label: "Biryani", emoji: "🍛" },
-  { label: "Sandwich", emoji: "🥪" },
-  { label: "Cakes", emoji: "🎂" },
-  { label: "Pizzas", emoji: "🍕" },
-  { label: "Samosa", emoji: "🥟" },
-];
+const cuisineEmojiMap: Record<string, string> = {
+  biryani: "🍛",
+  sandwich: "🥪",
+  cakes: "🎂",
+  cake: "🎂",
+  pizza: "🍕",
+  pizzas: "🍕",
+  samosa: "🥟",
+  dosa: "🥞",
+  idli: "🍚",
+  coffee: "☕️",
+  tea: "🍵",
+  burger: "🍔",
+  burgers: "🍔",
+  salad: "🥗",
+  chinese: "🥡",
+  indian: "🍲",
+  continental: "🍽️",
+};
+
+const getCuisineEmoji = (label: string) => {
+  const key = label.toLowerCase();
+  return cuisineEmojiMap[key] ?? "🍽️";
+};
+
+const formatPrice = (value: string | number) => {
+  const parsed = typeof value === "string" ? Number(value) : value;
+  if (Number.isFinite(parsed)) {
+    return `₹${parsed.toFixed(0)}`;
+  }
+  return String(value);
+};
 
 interface RestaurantRecord {
   id: string;
   name: string;
   keywords: string[];
   cuisine: string[];
+  items?: RestaurantItem[];
+  addonCategories?: AddonCategory[];
   address: string;
   lat: string;
   lng: string;
@@ -34,6 +61,18 @@ interface RestaurantRecord {
   nextActivationTime: string;
   username: string;
   password: string;
+}
+
+interface AddonCategory {
+  id: string;
+  name: string;
+}
+
+interface RestaurantItem {
+  id: string;
+  name: string;
+  price: string;
+  addonCategoryIds?: string[];
 }
 
 interface OrderFoodHomeProps {
@@ -60,7 +99,18 @@ export default function OrderFoodHome({
         const data = await res.json();
         if (!mounted) return;
         const records = (data?.data ?? data ?? []) as RestaurantRecord[];
-        setRestaurants(records.filter((record) => record.active));
+        const normalized = records
+          .filter((record) => record.active)
+          .map((record) => ({
+            ...record,
+            items: Array.isArray(record.items) ? record.items : [],
+            addonCategories: Array.isArray(record.addonCategories)
+              ? record.addonCategories
+              : [],
+            cuisine: Array.isArray(record.cuisine) ? record.cuisine : [],
+            keywords: Array.isArray(record.keywords) ? record.keywords : [],
+          }));
+        setRestaurants(normalized);
       } catch (error) {
         if (mounted) setRestaurants([]);
       } finally {
@@ -90,6 +140,34 @@ export default function OrderFoodHome({
       return haystack.includes(queryValue);
     });
   }, [query, restaurants]);
+
+  const cuisineChips = useMemo(() => {
+    const counts = new Map<string, number>();
+    restaurants.forEach((restaurant) => {
+      restaurant.cuisine.forEach((entry) => {
+        const label = entry.trim();
+        if (!label) return;
+        counts.set(label, (counts.get(label) ?? 0) + 1);
+      });
+    });
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([label]) => ({
+        label,
+        emoji: getCuisineEmoji(label),
+      }));
+  }, [restaurants]);
+
+  const resolveAddonLabels = (item: RestaurantItem, restaurant: RestaurantRecord) => {
+    if (!item.addonCategoryIds?.length) return [];
+    const lookup = new Map(
+      (restaurant.addonCategories ?? []).map((category) => [category.id, category.name]),
+    );
+    return item.addonCategoryIds
+      .map((id) => lookup.get(id))
+      .filter((value): value is string => Boolean(value));
+  };
 
   return (
     <section className="mx-auto max-w-7xl px-4 pb-10 pt-6 lg:px-8">
@@ -138,21 +216,23 @@ export default function OrderFoodHome({
           </button>
         </div>
 
-        <div className="flex items-center justify-between gap-3 overflow-x-auto pb-2">
-          {categoryChips.map((chip) => (
-            <div
-              key={chip.label}
-              className="flex flex-col items-center gap-2 rounded-2xl bg-white px-4 py-3 shadow-sm"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-2xl">
-                {chip.emoji}
+        {cuisineChips.length > 0 && (
+          <div className="flex items-center justify-between gap-3 overflow-x-auto pb-2">
+            {cuisineChips.map((chip) => (
+              <div
+                key={chip.label}
+                className="flex flex-col items-center gap-2 rounded-2xl bg-white px-4 py-3 shadow-sm"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-2xl">
+                  {chip.emoji}
+                </div>
+                <span className="text-xs font-semibold text-gray-700">
+                  {chip.label}
+                </span>
               </div>
-              <span className="text-xs font-semibold text-gray-700">
-                {chip.label}
-              </span>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         <div className="flex flex-wrap items-center gap-3">
           <button className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 shadow-sm">
@@ -221,6 +301,47 @@ export default function OrderFoodHome({
                 </p>
                 <p className="text-xs text-gray-500">{restaurant.description}</p>
                 <p className="text-xs text-gray-400">{restaurant.address}</p>
+                <div className="mt-4 space-y-2 rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-3 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Popular items
+                  </p>
+                  {restaurant.items && restaurant.items.length > 0 ? (
+                    <div className="space-y-2">
+                      {restaurant.items.slice(0, 2).map((item) => {
+                        const addonLabels = resolveAddonLabels(item, restaurant);
+                        return (
+                          <div
+                            key={item.id}
+                            className="rounded-xl border border-gray-100 bg-white px-3 py-2"
+                          >
+                            <div className="flex items-center justify-between text-sm font-semibold text-gray-800">
+                              <span>{item.name}</span>
+                              <span className="text-gray-600">
+                                {formatPrice(item.price)}
+                              </span>
+                            </div>
+                            {addonLabels.length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {addonLabels.map((label) => (
+                                  <span
+                                    key={`${item.id}-${label}`}
+                                    className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold text-orange-700"
+                                  >
+                                    {label}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500">
+                      No menu items available yet.
+                    </p>
+                  )}
+                </div>
               </div>
             </Link>
           ))
