@@ -31,6 +31,19 @@ interface RestaurantItem {
   imageUrl?: string;
 }
 
+interface AddonCategory {
+  id: string;
+  name: string;
+  multiSelect: boolean;
+}
+
+interface AddonItem {
+  id: string;
+  name: string;
+  price: string;
+  categoryId?: string;
+}
+
 interface RestaurantMenuPageProps {
   restaurantName: string;
 }
@@ -40,8 +53,11 @@ export default function RestaurantMenuPage({
 }: RestaurantMenuPageProps) {
   const [search, setSearch] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [addonOpen, setAddonOpen] = useState(false);
   const [categories, setCategories] = useState<RestaurantCategory[]>([]);
   const [items, setItems] = useState<RestaurantItem[]>([]);
+  const [addonCategories, setAddonCategories] = useState<AddonCategory[]>([]);
+  const [addonItems, setAddonItems] = useState<AddonItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -54,17 +70,31 @@ export default function RestaurantMenuPage({
         const itemRes = await fetch(
           `/api/admin/restaurants/${encodeURIComponent(restaurantName)}/items`,
         );
+        const addonCategoryRes = await fetch(
+          `/api/admin/restaurants/${encodeURIComponent(restaurantName)}/addon-categories`,
+        );
+        const addonItemRes = await fetch(
+          `/api/admin/restaurants/${encodeURIComponent(restaurantName)}/addon-items`,
+        );
         const [categoryData, itemData] = await Promise.all([
           categoryRes.json(),
           itemRes.json(),
         ]);
+        const [addonCategoryData, addonItemData] = await Promise.all([
+          addonCategoryRes.json(),
+          addonItemRes.json(),
+        ]);
         if (!mounted) return;
         setCategories(Array.isArray(categoryData) ? categoryData : []);
         setItems(Array.isArray(itemData) ? itemData : []);
+        setAddonCategories(Array.isArray(addonCategoryData) ? addonCategoryData : []);
+        setAddonItems(Array.isArray(addonItemData) ? addonItemData : []);
       } catch (error) {
         if (mounted) {
           setCategories([]);
           setItems([]);
+          setAddonCategories([]);
+          setAddonItems([]);
         }
       } finally {
         if (mounted) setLoading(false);
@@ -119,6 +149,15 @@ export default function RestaurantMenuPage({
         ).length,
       })),
     [categories, items],
+  );
+
+  const addonCategoryList = useMemo(
+    () =>
+      addonCategories.map((category) => ({
+        ...category,
+        items: addonItems.filter((item) => item.categoryId === category.id),
+      })),
+    [addonCategories, addonItems],
   );
 
   return (
@@ -243,9 +282,12 @@ export default function RestaurantMenuPage({
                             No image
                           </div>
                         )}
-                        <button className="absolute bottom-2 right-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-600 shadow">
-                          ADD
-                        </button>
+                      <button
+                        onClick={() => setAddonOpen(true)}
+                        className="absolute bottom-2 right-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-600 shadow"
+                      >
+                        ADD
+                      </button>
                       </div>
                     </div>
                   ))}
@@ -284,6 +326,68 @@ export default function RestaurantMenuPage({
                   </div>
                 ),
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {addonOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
+          <div className="w-full max-w-md rounded-t-3xl bg-white px-6 py-6 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900">
+                Choose Addons
+              </h3>
+              <button onClick={() => setAddonOpen(false)} className="rounded-full bg-slate-100 p-2">
+                <FiX />
+              </button>
+            </div>
+            <div className="mt-4 space-y-5">
+              {addonCategoryList.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+                  No addon categories yet.
+                </div>
+              ) : (
+                addonCategoryList.map((category) => (
+                  <div key={category.id}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {category.name}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {category.multiSelect ? "Select up to 2" : "Select any 1"}
+                        </p>
+                      </div>
+                      <span className="text-xs font-semibold text-orange-500">
+                        Select All
+                      </span>
+                    </div>
+                    <div className="mt-3 space-y-2 rounded-2xl border border-slate-200 bg-white p-3">
+                      {category.items.length === 0 ? (
+                        <p className="text-xs text-slate-500">
+                          No addon items in this category.
+                        </p>
+                      ) : (
+                        category.items.map((item) => (
+                          <label
+                            key={item.id}
+                            className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 px-3 py-2 text-sm text-slate-700"
+                          >
+                            <span>{item.name}</span>
+                            <span className="text-slate-500">+ {item.price}</span>
+                            <input type="checkbox" className="h-4 w-4" />
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="mt-6 flex items-center justify-between rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white">
+              <span>1 Item</span>
+              <span>Add Item | ₹269</span>
             </div>
           </div>
         </div>

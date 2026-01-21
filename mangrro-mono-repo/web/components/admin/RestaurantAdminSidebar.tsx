@@ -26,6 +26,8 @@ const navItems = [
   { href: "categories", label: "Categories", icon: FiTag },
   { href: "categories-schedule", label: "Categories schedule", icon: FiList },
   { href: "items", label: "Items", icon: FiPackage },
+  { href: "addons-category", label: "Addons category", icon: FiLayers },
+  { href: "addons-category-schedule", label: "Addons category schedule", icon: FiList },
   { href: "addons", label: "Addons", icon: FiLayers },
   { href: "surcharge", label: "Surcharge", icon: FiZap },
   { href: "delivery-charge", label: "Delivery charge", icon: FiTruck },

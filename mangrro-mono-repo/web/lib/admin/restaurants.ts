@@ -14,6 +14,8 @@ export interface AdminRestaurant {
   cuisine: string[];
   categories?: RestaurantCategory[];
   items?: RestaurantItem[];
+  addonCategories?: AddonCategory[];
+  addonItems?: AddonItem[];
   address: string;
   lat: string;
   lng: string;
@@ -69,6 +71,22 @@ export interface RestaurantItem {
   };
 }
 
+export interface AddonCategory {
+  id: string;
+  name: string;
+  active: boolean;
+  nextActivationTime: string;
+  schedule: RestaurantCategoryScheduleDay[];
+  multiSelect: boolean;
+}
+
+export interface AddonItem {
+  id: string;
+  name: string;
+  price: string;
+  categoryId?: string;
+}
+
 function getClient() {
   const config: DynamoDBClientConfig = { region: process.env.AWS_REGION };
   if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
@@ -104,6 +122,12 @@ export async function listAdminRestaurants(): Promise<AdminRestaurant[]> {
       ? (item.categories as RestaurantCategory[])
       : [],
     items: Array.isArray(item.items) ? (item.items as RestaurantItem[]) : [],
+    addonCategories: Array.isArray(item.addonCategories)
+      ? (item.addonCategories as AddonCategory[])
+      : [],
+    addonItems: Array.isArray(item.addonItems)
+      ? (item.addonItems as AddonItem[])
+      : [],
     address: (item.address as string) || "",
     lat: (item.lat as string) || "",
     lng: (item.lng as string) || "",
@@ -189,6 +213,56 @@ export async function saveAdminRestaurantItems(
   );
 
   return items;
+}
+
+export async function saveAdminAddonCategories(
+  restaurantName: string,
+  addonCategories: AddonCategory[],
+) {
+  if (!RESTAURANTS_TABLE) return [];
+  const existing = await getAdminRestaurantByName(restaurantName);
+  if (!existing) return [];
+  const client = getClient();
+  const updated: AdminRestaurant = {
+    ...existing,
+    addonCategories,
+  };
+
+  await client.send(
+    new PutCommand({
+      TableName: RESTAURANTS_TABLE,
+      Item: {
+        ...updated,
+      },
+    }),
+  );
+
+  return addonCategories;
+}
+
+export async function saveAdminAddonItems(
+  restaurantName: string,
+  addonItems: AddonItem[],
+) {
+  if (!RESTAURANTS_TABLE) return [];
+  const existing = await getAdminRestaurantByName(restaurantName);
+  if (!existing) return [];
+  const client = getClient();
+  const updated: AdminRestaurant = {
+    ...existing,
+    addonItems,
+  };
+
+  await client.send(
+    new PutCommand({
+      TableName: RESTAURANTS_TABLE,
+      Item: {
+        ...updated,
+      },
+    }),
+  );
+
+  return addonItems;
 }
 
 export async function saveAdminRestaurant(restaurant: AdminRestaurant) {
