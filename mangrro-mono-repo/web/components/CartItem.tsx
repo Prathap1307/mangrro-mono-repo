@@ -1,8 +1,11 @@
 import { FiMinus, FiPlus, FiTrash2 } from 'react-icons/fi';
 import type { CartItem as CartItemType } from '@/components/context/CartContext';
+import type { FoodCartItem } from '@/components/context/FoodCartContext';
+
+type CartDisplayItem = CartItemType | FoodCartItem;
 
 interface Props {
-  item: CartItemType;
+  item: CartDisplayItem;
   isAvailable: boolean;
   onIncrease: (id: string) => void;
   onDecrease: (id: string) => void;
