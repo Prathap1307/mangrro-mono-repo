@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { useSafeUser } from "@/lib/auth/useSafeUser";
 
-const BLOCKED_FOR_GUESTS = ["/cart", "/account", "/checkout"];
+const BLOCKED_FOR_GUESTS = ["/cart", "/food-cart", "/account", "/checkout"];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { user, isLoaded } = useSafeUser();
