@@ -64,6 +64,8 @@ export interface RestaurantItem {
   description?: string;
   imageKey?: string;
   imageUrl?: string;
+  vegType: "veg" | "nonveg";
+  bestSeller: boolean;
   tax: RestaurantItemTax;
   packingCharge: {
     enabled: boolean;

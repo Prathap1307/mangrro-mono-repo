@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   FiArrowLeft,
@@ -12,8 +13,15 @@ import {
   FiUserPlus,
   FiX,
 } from "react-icons/fi";
+import Navbar from "@/components/Navbar";
+import { useFoodCart } from "@/components/context/FoodCartContext";
 
-const filters = ["Ratings 4.0+", "Bestseller", "Veg", "Spicy"];
+const filters = [
+  { key: "rating", label: "Ratings 4.0+" },
+  { key: "bestseller", label: "Bestseller" },
+  { key: "veg", label: "Veg" },
+  { key: "spicy", label: "Spicy" },
+];
 
 interface RestaurantCategory {
   id: string;
@@ -30,6 +38,8 @@ interface RestaurantItem {
   description?: string;
   imageUrl?: string;
   addonCategoryIds?: string[];
+  vegType?: "veg" | "nonveg";
+  bestSeller?: boolean;
 }
 
 interface AddonCategory {
@@ -49,35 +59,47 @@ interface RestaurantMenuPageProps {
   restaurantName: string;
 }
 
+interface RestaurantDetails {
+  name: string;
+  address: string;
+  averagePrepTime: string;
+}
+
 export default function RestaurantMenuPage({
   restaurantName,
 }: RestaurantMenuPageProps) {
+  const { addItem: addFoodItem, itemCount: foodItemCount } = useFoodCart();
   const [search, setSearch] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [addonOpen, setAddonOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<RestaurantItem | null>(null);
+  const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [categories, setCategories] = useState<RestaurantCategory[]>([]);
   const [items, setItems] = useState<RestaurantItem[]>([]);
   const [addonCategories, setAddonCategories] = useState<AddonCategory[]>([]);
   const [addonItems, setAddonItems] = useState<AddonItem[]>([]);
+  const [restaurantDetails, setRestaurantDetails] = useState<RestaurantDetails | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
     const loadData = async () => {
       try {
-        const categoryRes = await fetch(
-          `/api/admin/restaurants/${encodeURIComponent(restaurantName)}/categories`,
-        );
-        const itemRes = await fetch(
-          `/api/admin/restaurants/${encodeURIComponent(restaurantName)}/items`,
-        );
-        const addonCategoryRes = await fetch(
-          `/api/admin/restaurants/${encodeURIComponent(restaurantName)}/addon-categories`,
-        );
-        const addonItemRes = await fetch(
-          `/api/admin/restaurants/${encodeURIComponent(restaurantName)}/addon-items`,
-        );
+        const [
+          categoryRes,
+          itemRes,
+          addonCategoryRes,
+          addonItemRes,
+          restaurantRes,
+        ] = await Promise.all([
+          fetch(`/api/admin/restaurants/${encodeURIComponent(restaurantName)}/categories`),
+          fetch(`/api/admin/restaurants/${encodeURIComponent(restaurantName)}/items`),
+          fetch(`/api/admin/restaurants/${encodeURIComponent(restaurantName)}/addon-categories`),
+          fetch(`/api/admin/restaurants/${encodeURIComponent(restaurantName)}/addon-items`),
+          fetch("/api/admin/restaurants"),
+        ]);
         const [categoryData, itemData] = await Promise.all([
           categoryRes.json(),
           itemRes.json(),
@@ -86,17 +108,37 @@ export default function RestaurantMenuPage({
           addonCategoryRes.json(),
           addonItemRes.json(),
         ]);
+        const restaurantData = await restaurantRes.json();
         if (!mounted) return;
         setCategories(Array.isArray(categoryData) ? categoryData : []);
         setItems(Array.isArray(itemData) ? itemData : []);
         setAddonCategories(Array.isArray(addonCategoryData) ? addonCategoryData : []);
         setAddonItems(Array.isArray(addonItemData) ? addonItemData : []);
+        const restaurantList = Array.isArray(restaurantData)
+          ? restaurantData
+          : restaurantData?.data ?? [];
+        const matched = Array.isArray(restaurantList)
+          ? restaurantList.find(
+              (restaurant: RestaurantDetails) =>
+                restaurant.name?.toLowerCase?.() === restaurantName.toLowerCase(),
+            )
+          : null;
+        setRestaurantDetails(
+          matched
+            ? {
+                name: matched.name ?? restaurantName,
+                address: matched.address ?? "",
+                averagePrepTime: matched.averagePrepTime ?? "",
+              }
+            : null,
+        );
       } catch (error) {
         if (mounted) {
           setCategories([]);
           setItems([]);
           setAddonCategories([]);
           setAddonItems([]);
+          setRestaurantDetails(null);
         }
       } finally {
         if (mounted) setLoading(false);
@@ -111,7 +153,7 @@ export default function RestaurantMenuPage({
 
   const filteredSections = useMemo(() => {
     const query = search.trim().toLowerCase();
-    const filteredItems = !query
+    const baseFilteredItems = !query
       ? items
       : items.filter((item) => {
           const haystack = [
@@ -124,6 +166,24 @@ export default function RestaurantMenuPage({
             .toLowerCase();
           return haystack.includes(query);
         });
+    const activeFilterSet = new Set(activeFilters);
+    const filteredItems = baseFilteredItems.filter((item) => {
+      if (activeFilterSet.has("bestseller") && !item.bestSeller) {
+        return false;
+      }
+      if (activeFilterSet.has("veg") && item.vegType !== "veg") {
+        return false;
+      }
+      if (activeFilterSet.has("spicy")) {
+        const keywordMatches = (item.keywords ?? []).some((keyword) =>
+          keyword.toLowerCase().includes("spicy"),
+        );
+        if (!keywordMatches) {
+          return false;
+        }
+      }
+      return true;
+    });
 
     const sections = categories.length
       ? categories.map((category) => ({
@@ -140,7 +200,7 @@ export default function RestaurantMenuPage({
         ];
 
     return sections.filter((section) => section.items.length > 0);
-  }, [categories, items, search]);
+  }, [activeFilters, categories, items, search]);
 
   const categoryList = useMemo(
     () =>
@@ -170,8 +230,35 @@ export default function RestaurantMenuPage({
     return addonCategoryList.filter((category) => allowed.has(category.id));
   }, [addonCategoryList, selectedItem]);
 
+  const parsePrice = (value: string) => {
+    const parsed = Number(String(value).replace(/[^0-9.]/g, ""));
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const handleAddToFoodCart = () => {
+    if (!selectedItem) return;
+    addFoodItem({
+      id: selectedItem.id,
+      name: selectedItem.name,
+      price: parsePrice(selectedItem.price),
+      image: selectedItem.imageUrl,
+      available: true,
+      description: selectedItem.description,
+      keywords: selectedItem.keywords,
+      category: selectedItem.categoryName,
+    });
+    setAddonOpen(false);
+  };
+
+  const handleFilterToggle = (key: string) => {
+    setActiveFilters((prev) =>
+      prev.includes(key) ? prev.filter((filter) => filter !== key) : [...prev, key],
+    );
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 pb-28">
+      <Navbar />
       <div className="mx-auto max-w-3xl px-4 pb-8 pt-6">
         <div className="mb-4 flex items-center justify-between">
           <button className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-600 shadow">
@@ -191,17 +278,21 @@ export default function RestaurantMenuPage({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-blue-500">
-                Swiggy Seal
+                Delivery Star
               </p>
               <h1 className="text-2xl font-bold text-slate-900">
-                {restaurantName}
+                {restaurantDetails?.name ?? restaurantName}
               </h1>
               <p className="text-sm text-slate-500">
-                25-30 mins · Guindy <FiChevronDown className="inline" />
+                {restaurantDetails?.averagePrepTime
+                  ? `${restaurantDetails.averagePrepTime} · `
+                  : ""}
+                {restaurantDetails?.address || "Address unavailable"}{" "}
+                <FiChevronDown className="inline" />
               </p>
             </div>
             <div className="rounded-full bg-emerald-100 px-3 py-2 text-sm font-semibold text-emerald-700">
-              4.7 <FiStar className="inline" />
+              Open <FiStar className="inline" />
             </div>
           </div>
           <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
@@ -228,10 +319,15 @@ export default function RestaurantMenuPage({
         <div className="mt-4 flex flex-wrap gap-3">
           {filters.map((filter) => (
             <button
-              key={filter}
-              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600"
+              key={filter.key}
+              onClick={() => handleFilterToggle(filter.key)}
+              className={`rounded-full border px-4 py-2 text-xs font-semibold ${
+                activeFilters.includes(filter.key)
+                  ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                  : "border-slate-200 bg-white text-slate-600"
+              }`}
             >
-              {filter}
+              {filter.label}
             </button>
           ))}
         </div>
@@ -399,19 +495,28 @@ export default function RestaurantMenuPage({
               )}
             </div>
             <div className="mt-6 flex items-center justify-between rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white">
-              <span>1 Item</span>
-              <span>Add Item | ₹269</span>
+              <span>
+                {selectedItem ? selectedItem.name : "Item"}
+              </span>
+              <button onClick={handleAddToFoodCart}>
+                Add Item | ₹{parsePrice(selectedItem?.price ?? "0")}
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      <div className="fixed bottom-4 left-1/2 w-[92%] max-w-md -translate-x-1/2 rounded-2xl bg-emerald-500 px-5 py-3 text-white shadow-lg">
-        <div className="flex items-center justify-between text-sm font-semibold">
-          <span>1 Item added</span>
-          <span>View Cart →</span>
-        </div>
-      </div>
+      {foodItemCount > 0 && (
+        <Link
+          href="/food-cart"
+          className="fixed bottom-4 left-1/2 w-[92%] max-w-md -translate-x-1/2 rounded-2xl bg-emerald-500 px-5 py-3 text-white shadow-lg"
+        >
+          <div className="flex items-center justify-between text-sm font-semibold">
+            <span>{foodItemCount} Item{foodItemCount > 1 ? "s" : ""} added</span>
+            <span>View Cart →</span>
+          </div>
+        </Link>
+      )}
     </div>
   );
 }

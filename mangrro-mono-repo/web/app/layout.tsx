@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 
 import { ClerkProvider } from "@clerk/nextjs";
 import { CartProvider } from "@/components/context/CartContext";
+import { FoodCartProvider } from "@/components/context/FoodCartContext";
 import { FavouritesProvider } from "@/components/context/FavouritesContext";
 import { DeliveryProvider } from "@/components/context/DeliveryContext";
 
@@ -45,21 +46,23 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <OptionalClerkProvider>
       <CartProvider>
-        <FavouritesProvider>
-          <DeliveryProvider>
-            <html lang="en-GB" suppressHydrationWarning>
-              <body className="overflow-x-hidden" suppressHydrationWarning>
-                <AppShell>{children}</AppShell>
+        <FoodCartProvider>
+          <FavouritesProvider>
+            <DeliveryProvider>
+              <html lang="en-GB" suppressHydrationWarning>
+                <body className="overflow-x-hidden" suppressHydrationWarning>
+                  <AppShell>{children}</AppShell>
 
-                {/* Live tracking bar */}
-                <ActiveOrderBar />
+                  {/* Live tracking bar */}
+                  <ActiveOrderBar />
 
-                {/* Mini cart 
+                  {/* Mini cart 
                 <MiniCartBar /> */}
-              </body>
-            </html>
-          </DeliveryProvider>
-        </FavouritesProvider>
+                </body>
+              </html>
+            </DeliveryProvider>
+          </FavouritesProvider>
+        </FoodCartProvider>
       </CartProvider>
     </OptionalClerkProvider>
   );

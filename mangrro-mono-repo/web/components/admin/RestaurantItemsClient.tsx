@@ -43,6 +43,8 @@ export default function RestaurantItemsClient({
     description: "",
     imageKey: "",
     imageUrl: "",
+    vegType: "veg" as "veg" | "nonveg",
+    bestSeller: false,
     taxEnabled: false,
     taxType: "percentage",
     taxValue: "",
@@ -103,6 +105,8 @@ export default function RestaurantItemsClient({
       strikePrice: formState.strikePrice || undefined,
       description: formState.description || undefined,
       imageKey: formState.imageKey || undefined,
+      vegType: formState.vegType === "nonveg" ? "nonveg" : "veg",
+      bestSeller: formState.bestSeller,
       tax: {
         enabled: formState.taxEnabled,
         type: formState.taxType === "fixed" ? "fixed" : "percentage",
@@ -145,6 +149,8 @@ export default function RestaurantItemsClient({
       description: item.description ?? "",
       imageKey: item.imageKey ?? "",
       imageUrl: item.imageUrl ?? "",
+      vegType: item.vegType ?? "veg",
+      bestSeller: item.bestSeller ?? false,
       taxEnabled: item.tax.enabled,
       taxType: item.tax.type,
       taxValue: item.tax.value,
@@ -205,6 +211,8 @@ export default function RestaurantItemsClient({
                   description: "",
                   imageKey: "",
                   imageUrl: "",
+                  vegType: "veg",
+                  bestSeller: false,
                   taxEnabled: false,
                   taxType: "percentage",
                   taxValue: "",
@@ -333,6 +341,47 @@ export default function RestaurantItemsClient({
               rows={3}
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
             />
+          </AdminFormField>
+          <AdminFormField label="Veg or Non-veg">
+            <div className="flex gap-2">
+              {[
+                { value: "veg", label: "Veg" },
+                { value: "nonveg", label: "Non-veg" },
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() =>
+                    setFormState((prev) => ({
+                      ...prev,
+                      vegType: option.value,
+                    }))
+                  }
+                  className={`rounded-full px-4 py-2 text-xs font-semibold ${
+                    formState.vegType === option.value
+                      ? "bg-emerald-500 text-white"
+                      : "border border-slate-200 text-slate-600"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </AdminFormField>
+          <AdminFormField label="Best seller">
+            <button
+              type="button"
+              onClick={() =>
+                setFormState((prev) => ({ ...prev, bestSeller: !prev.bestSeller }))
+              }
+              className={`rounded-full px-4 py-2 text-xs font-semibold ${
+                formState.bestSeller
+                  ? "bg-orange-500 text-white"
+                  : "border border-slate-200 text-slate-600"
+              }`}
+            >
+              {formState.bestSeller ? "Best seller" : "Mark as best seller"}
+            </button>
           </AdminFormField>
           <AdminFormField label="Photo" className="md:col-span-2">
             <div className="flex flex-col gap-3">

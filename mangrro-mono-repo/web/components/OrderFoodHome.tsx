@@ -73,6 +73,8 @@ interface RestaurantItem {
   name: string;
   price: string;
   addonCategoryIds?: string[];
+  keywords?: string[];
+  vegType?: "veg" | "nonveg";
 }
 
 interface OrderFoodHomeProps {
@@ -126,20 +128,28 @@ export default function OrderFoodHome({
 
   const filteredRestaurants = useMemo(() => {
     const queryValue = query.trim().toLowerCase();
-    if (!queryValue) return restaurants;
-    return restaurants.filter((restaurant) => {
+    const baseRestaurants = restaurants.filter((restaurant) => {
+      if (!vegOnly) return true;
+      return (restaurant.items ?? []).some((item) => item.vegType === "veg");
+    });
+    if (!queryValue) return baseRestaurants;
+    return baseRestaurants.filter((restaurant) => {
+      const itemHaystack = (restaurant.items ?? [])
+        .flatMap((item) => [item.name, ...(item.keywords ?? [])])
+        .join(" ");
       const haystack = [
         restaurant.name,
         restaurant.description,
         restaurant.address,
         ...restaurant.cuisine,
         ...restaurant.keywords,
+        itemHaystack,
       ]
         .join(" ")
         .toLowerCase();
       return haystack.includes(queryValue);
     });
-  }, [query, restaurants]);
+  }, [query, restaurants, vegOnly]);
 
   const cuisineChips = useMemo(() => {
     const counts = new Map<string, number>();
