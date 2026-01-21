@@ -34,6 +34,12 @@ export default function FoodCartPageClient() {
   const [editPostcode, setEditPostcode] = useState("");
   const [editLat, setEditLat] = useState<number | undefined>();
   const [editLng, setEditLng] = useState<number | undefined>();
+  const [restaurantName, setRestaurantName] = useState("");
+  const [instructionsOpen, setInstructionsOpen] = useState(false);
+  const [specialRequest, setSpecialRequest] = useState("");
+  const [deliveryInstruction, setDeliveryInstruction] = useState("leave-at-door");
+  const [deliveryLocation, setDeliveryLocation] = useState("home");
+  const [deliveryLocationOther, setDeliveryLocationOther] = useState("");
 
   useEffect(() => {
     const stored = localStorage.getItem("food-cart-offer");
@@ -41,6 +47,36 @@ export default function FoodCartPageClient() {
       setOffer(JSON.parse(stored));
     }
   }, []);
+
+  useEffect(() => {
+    setRestaurantName(localStorage.getItem("food-cart-restaurant") ?? "");
+    setSpecialRequest(localStorage.getItem("food-cart-special-request") ?? "");
+    setDeliveryInstruction(
+      localStorage.getItem("food-cart-delivery-instruction") ?? "leave-at-door",
+    );
+    const storedLocation =
+      localStorage.getItem("food-cart-delivery-location") ?? "home";
+    setDeliveryLocation(storedLocation);
+    setDeliveryLocationOther(
+      localStorage.getItem("food-cart-delivery-location-other") ?? "",
+    );
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("food-cart-special-request", specialRequest);
+  }, [specialRequest]);
+
+  useEffect(() => {
+    localStorage.setItem("food-cart-delivery-instruction", deliveryInstruction);
+  }, [deliveryInstruction]);
+
+  useEffect(() => {
+    localStorage.setItem("food-cart-delivery-location", deliveryLocation);
+    localStorage.setItem(
+      "food-cart-delivery-location-other",
+      deliveryLocationOther,
+    );
+  }, [deliveryLocation, deliveryLocationOther]);
 
   useEffect(() => {
     if (!finderOpen) return;
@@ -64,6 +100,9 @@ export default function FoodCartPageClient() {
       : Number(offer.value)
     : 0;
   const totalToPay = Math.max(subtotal - discount, 0);
+  const restaurantRoute = restaurantName
+    ? `/restaurants/${encodeURIComponent(restaurantName)}`
+    : "/";
 
   useEffect(() => {
     if (!finderOpen) return;
@@ -210,10 +249,6 @@ export default function FoodCartPageClient() {
           </div>
         </div>
 
-        <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
-          ✨ ₹870 saved on this order
-        </div>
-
         {items.length === 0 ? (
           <div className="mt-8">
             <EmptyState
@@ -233,10 +268,13 @@ export default function FoodCartPageClient() {
                       Restaurant
                     </p>
                     <p className="text-lg font-semibold text-slate-900">
-                      Domino&apos;s Pizza
+                      {restaurantName || "Restaurant"}
                     </p>
                   </div>
-                  <button className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600">
+                  <button
+                    onClick={() => router.push(restaurantRoute)}
+                    className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
+                  >
                     Add items
                   </button>
                 </div>
@@ -284,16 +322,35 @@ export default function FoodCartPageClient() {
                   ))}
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <button className="flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600">
+                  <button
+                    onClick={() => router.push(restaurantRoute)}
+                    className="flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600"
+                  >
                     + Add items
                   </button>
-                  <button className="flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600">
-                    Cooking requests
+                  <button
+                    onClick={() => setInstructionsOpen((prev) => !prev)}
+                    className="flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600"
+                  >
+                    Instructions
                   </button>
                   <button className="flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600">
                     Cutlery
                   </button>
                 </div>
+                {instructionsOpen && (
+                  <div className="mt-3">
+                    <input
+                      value={specialRequest}
+                      onChange={(event) => setSpecialRequest(event.target.value)}
+                      placeholder="Add any special request"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700"
+                    />
+                    <p className="mt-1 text-xs text-slate-400">
+                      It will be displayed to the delivery driver.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="rounded-3xl border border-slate-100 bg-white p-4 shadow-sm">
@@ -311,6 +368,9 @@ export default function FoodCartPageClient() {
                   {offer && (
                     <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-3 text-sm text-emerald-700">
                       {offer.label} · Applied ({offer.code})
+                      <div className="mt-1 text-xs text-emerald-600">
+                        You saved {formatCurrency(discount)}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -345,23 +405,12 @@ export default function FoodCartPageClient() {
                       {formatCurrency(totalToPay)}
                     </p>
                   </div>
-                  {offer && (
-                    <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-                      {formatCurrency(discount)} saved
-                    </span>
-                  )}
                 </div>
                 <div className="mt-4 space-y-3 text-sm text-slate-600">
                   <div className="flex items-center justify-between">
                     <span>Item total</span>
                     <span>{formatCurrency(subtotal)}</span>
                   </div>
-                  {offer && (
-                    <div className="flex items-center justify-between text-emerald-600">
-                      <span>Offer discount</span>
-                      <span>-{formatCurrency(discount)}</span>
-                    </div>
-                  )}
                   <div className="flex items-center justify-between">
                     <span>Delivery fee | 1.3 kms</span>
                     <span className="text-emerald-600">FREE</span>
@@ -450,6 +499,62 @@ export default function FoodCartPageClient() {
                 placeholder="Postcode"
                 className="w-full rounded-xl border border-slate-200 px-3 py-2"
               />
+              <div className="rounded-xl border border-slate-200 px-3 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Delivery instruction
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
+                  {[
+                    { value: "leave-at-door", label: "Leave at door" },
+                    { value: "hand-it", label: "Hand it to me" },
+                    { value: "meet-driver", label: "I'll meet driver at door" },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => setDeliveryInstruction(option.value)}
+                      className={`rounded-full border px-3 py-1 ${
+                        deliveryInstruction === option.value
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : "border-slate-200"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-xl border border-slate-200 px-3 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Delivery location
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
+                  {[
+                    { value: "home", label: "Home" },
+                    { value: "office", label: "Office" },
+                    { value: "other", label: "Other" },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => setDeliveryLocation(option.value)}
+                      className={`rounded-full border px-3 py-1 ${
+                        deliveryLocation === option.value
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : "border-slate-200"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                {deliveryLocation === "other" && (
+                  <input
+                    value={deliveryLocationOther}
+                    onChange={(event) => setDeliveryLocationOther(event.target.value)}
+                    placeholder="Enter delivery location"
+                    className="mt-3 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700"
+                  />
+                )}
+              </div>
             </div>
             <button
               onClick={saveFinderAddress}

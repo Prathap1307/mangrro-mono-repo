@@ -195,6 +195,7 @@ export default function RestaurantDeliveryChargesClient({
           />
           <AdminFormField
             label="Time start"
+            type="time"
             value={formState.timeStart}
             onChange={(event) =>
               setFormState((prev) => ({
@@ -205,6 +206,7 @@ export default function RestaurantDeliveryChargesClient({
           />
           <AdminFormField
             label="Time end"
+            type="time"
             value={formState.timeEnd}
             onChange={(event) =>
               setFormState((prev) => ({
