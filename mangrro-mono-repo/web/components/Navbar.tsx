@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useState } from 'react';
 import { useCart } from '@/components/context/CartContext';
+import { useFoodCart } from "@/components/context/FoodCartContext";
 import { useFavourites } from '@/components/context/FavouritesContext';
 import { FiHeart, FiShoppingCart, FiUser, FiMenu, FiX } from 'react-icons/fi';
 
@@ -12,7 +13,12 @@ export default function Navbar({ onSearchChange }: { onSearchChange?: (value: st
 
   // Build cartQuantity manually so it NEVER becomes undefined
   const { items } = useCart();
+  const { items: foodItems } = useFoodCart();
   const cartQuantity = items.reduce((n, item) => n + (item.quantity || 1), 0);
+  const foodCartQuantity = foodItems.reduce(
+    (n, item) => n + (item.quantity || 1),
+    0,
+  );
   const { favourites } = useFavourites();
   const favouritesCount = favourites.length;
 
@@ -32,13 +38,23 @@ export default function Navbar({ onSearchChange }: { onSearchChange?: (value: st
         <div className="hidden md:flex items-center gap-4">
 
           {/* Cart with badge */}
-          <Link href="/cart" className="relative p-2 rounded-full hover:bg-gray-100">
-            <FiShoppingCart size={24} />
-
+          <Link href="/cart" className="relative flex items-center gap-2 rounded-full px-3 py-2 hover:bg-gray-100">
+            <FiShoppingCart size={20} />
+            <span className="text-xs font-semibold text-gray-700">Groceries</span>
             {cartQuantity > 0 && (
               <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 
                                flex items-center justify-center rounded-full">
                 {cartQuantity}
+              </span>
+            )}
+          </Link>
+          <Link href="/food-cart" className="relative flex items-center gap-2 rounded-full px-3 py-2 hover:bg-gray-100">
+            <FiShoppingCart size={20} />
+            <span className="text-xs font-semibold text-gray-700">Food</span>
+            {foodCartQuantity > 0 && (
+              <span className="absolute -top-1 -right-1 bg-emerald-500 text-white text-xs w-5 h-5 
+                               flex items-center justify-center rounded-full">
+                {foodCartQuantity}
               </span>
             )}
           </Link>
@@ -75,7 +91,14 @@ export default function Navbar({ onSearchChange }: { onSearchChange?: (value: st
             className="flex items-center gap-3 p-2 rounded hover:bg-gray-100"
             onClick={() => setMobileOpen(false)}
           >
-            <FiShoppingCart /> Cart ({cartQuantity})
+            <FiShoppingCart /> Groceries Cart ({cartQuantity})
+          </Link>
+          <Link
+            href="/food-cart"
+            className="flex items-center gap-3 p-2 rounded hover:bg-gray-100"
+            onClick={() => setMobileOpen(false)}
+          >
+            <FiShoppingCart /> Food Cart ({foodCartQuantity})
           </Link>
 
           <Link
